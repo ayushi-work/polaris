@@ -29,6 +29,9 @@ func (i *Incident) BeforeCreate(tx *gorm.DB) error {
 	if i.ID == "" {
 		i.ID = NewID("INC")
 	}
+	if i.Status == "" {
+		i.Status = "detected"
+	}
 	if i.DetectedAt.IsZero() {
 		i.DetectedAt = time.Now().UTC()
 	}

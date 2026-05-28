@@ -14,9 +14,8 @@ import (
 )
 
 var (
-	cfgPath  string
-	dryRun   bool
-	cfg      *config.Config
+	cfgPath string
+	dryRun  bool
 )
 
 func main() {
@@ -49,8 +48,7 @@ func main() {
 }
 
 func runServe(cmd *cobra.Command, args []string) error {
-	var err error
-	cfg, err = config.Load(cfgPath)
+	cfg, err := config.Load(cfgPath)
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
@@ -72,7 +70,6 @@ func runServe(cmd *cobra.Command, args []string) error {
 }
 
 func init() {
-	// Ensure data directory exists
 	if err := os.MkdirAll("./data", 0755); err != nil {
 		log.Printf("Warning: could not create data dir: %v", err)
 	}

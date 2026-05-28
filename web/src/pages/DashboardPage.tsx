@@ -9,14 +9,17 @@ export default function DashboardPage() {
   const { data, isLoading } = useDashboardMetrics();
 
   if (isLoading) {
-    return <div className="text-sm text-muted-foreground">Loading dashboard...</div>;
+    return <div className="text-sm text-stone-400">Loading...</div>;
   }
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-xl font-bold">Overview</h1>
+    <div className="space-y-8">
+      <div>
+        <h1 className="font-serif text-3xl italic text-stone-900">Overview</h1>
+        <p className="mt-1 text-sm text-stone-500">Cluster reliability at a glance.</p>
+      </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-5">
         <ClusterHealthCard health={data?.cluster_health || "Unknown"} />
         <ActiveIncidentsCard
           active={data?.active_incidents || 0}
@@ -29,7 +32,7 @@ export default function DashboardPage() {
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-5">
         <MttrMttdChart />
         <RecentActivity />
       </div>

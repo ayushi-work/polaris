@@ -11,8 +11,8 @@ export function PostmortemGenerator() {
   const handleDownload = (format: string) => {
     if (!incident) return;
 
+    const ext = format === "md" ? "md" : "txt";
     let content = "";
-    const ext = format === "md" ? "md" : format === "html" ? "html" : "txt";
 
     if (ext === "md") {
       content = `# Postmortem: ${incident.id}
@@ -53,14 +53,14 @@ ${incident.rca_result?.summary || incident.message}
 
   return (
     <div className="space-y-6">
-      <div className="rounded-lg border border-border bg-card p-6">
-        <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
+      <div className="rounded-xl border border-border bg-white p-6">
+        <h2 className="mb-4 flex items-center gap-2 font-serif text-xl italic text-stone-900">
           <FileText className="h-5 w-5" />
           Generate Postmortem
         </h2>
-        <div className="flex gap-4">
+        <div className="flex gap-3">
           <select
-            className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
+            className="flex-1 rounded-lg border border-border bg-stone-50 px-3 py-2.5 text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-stone-200"
             value={selectedId}
             onChange={(e) => setSelectedId(e.target.value)}
           >
@@ -74,7 +74,7 @@ ${incident.rca_result?.summary || incident.message}
           <button
             disabled={!incident}
             onClick={() => handleDownload("md")}
-            className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm text-white disabled:opacity-50"
+            className="flex items-center gap-2 rounded-lg bg-stone-800 px-4 py-2.5 text-sm font-medium text-white hover:bg-stone-700 disabled:opacity-50 transition-colors"
           >
             <Download className="h-4 w-4" />
             Export Markdown
@@ -83,38 +83,20 @@ ${incident.rca_result?.summary || incident.message}
       </div>
 
       {incident && (
-        <div className="rounded-lg border border-border bg-card p-6">
-          <h3 className="mb-4 font-semibold">Preview</h3>
+        <div className="rounded-xl border border-border bg-white p-6">
+          <h3 className="mb-4 font-serif text-lg italic text-stone-900">Preview</h3>
           <div className="space-y-4 text-sm">
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <span className="text-muted-foreground">Incident:</span> {incident.id}
-              </div>
-              <div>
-                <span className="text-muted-foreground">Service:</span> {incident.resource_name}
-              </div>
-              <div>
-                <span className="text-muted-foreground">Severity:</span> {incident.severity}
-              </div>
-              <div>
-                <span className="text-muted-foreground">Status:</span> {incident.status}
-              </div>
-              <div>
-                <span className="text-muted-foreground">Detected:</span>{" "}
-                {new Date(incident.detected_at).toLocaleString()}
-              </div>
-              <div>
-                <span className="text-muted-foreground">Resolved:</span>{" "}
-                {incident.resolved_at
-                  ? new Date(incident.resolved_at).toLocaleString()
-                  : "Pending"}
-              </div>
+              <div><span className="text-stone-400">Incident:</span> <span className="text-stone-700">{incident.id}</span></div>
+              <div><span className="text-stone-400">Service:</span> <span className="text-stone-700">{incident.resource_name}</span></div>
+              <div><span className="text-stone-400">Severity:</span> <span className="text-stone-700">{incident.severity}</span></div>
+              <div><span className="text-stone-400">Status:</span> <span className="text-stone-700">{incident.status}</span></div>
+              <div><span className="text-stone-400">Detected:</span> <span className="text-stone-700">{new Date(incident.detected_at).toLocaleString()}</span></div>
+              <div><span className="text-stone-400">Resolved:</span> <span className="text-stone-700">{incident.resolved_at ? new Date(incident.resolved_at).toLocaleString() : "Pending"}</span></div>
             </div>
-            <div className="rounded-lg bg-gray-950 p-4">
-              <h4 className="mb-2 font-medium">Root Cause Analysis</h4>
-              <p className="text-muted-foreground">
-                {incident.rca_result?.root_cause || "No RCA available"}
-              </p>
+            <div className="rounded-lg bg-stone-50 p-4">
+              <h4 className="mb-2 text-xs font-medium uppercase tracking-wider text-stone-400">Root Cause Analysis</h4>
+              <p className="text-stone-600">{incident.rca_result?.root_cause || "No RCA available"}</p>
             </div>
           </div>
         </div>

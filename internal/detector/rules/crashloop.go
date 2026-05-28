@@ -3,7 +3,6 @@ package rules
 import (
 	"context"
 
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/ayushi/polaris/internal/detector"
@@ -38,4 +37,3 @@ func (r *CrashLoopRule) Evaluate(ctx context.Context, client kube.Client, namesp
 }
 
 var _ detector.Rule = (*CrashLoopRule)(nil)
-var _ = v1.Pod{}

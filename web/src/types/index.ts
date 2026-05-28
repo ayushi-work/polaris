@@ -44,6 +44,8 @@ export interface RCAResult {
   suggested_actions: string;
   raw_llm_output: string;
   llm_model: string;
+  prompt_tokens: number;
+  completion_tokens: number;
   created_at: string;
 }
 

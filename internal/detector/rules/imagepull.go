@@ -3,7 +3,6 @@ package rules
 import (
 	"context"
 
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/ayushi/polaris/internal/detector"
@@ -38,12 +37,4 @@ func (r *ImagePullRule) Evaluate(ctx context.Context, client kube.Client, namesp
 	return incidents, nil
 }
 
-var (
-	_ detector.Rule = (*ImagePullRule)(nil)
-	_                = v1.Pod{}
-	_                = metav1.ListOptions{}
-	_                = kube.Client(nil)
-	_                = iforge.IncidentTypeOOMKilled
-	_                = context.Background
-	_                = models.Incident{}
-)
+var _ detector.Rule = (*ImagePullRule)(nil)

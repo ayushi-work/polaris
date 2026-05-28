@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { ScrollText, Search } from "lucide-react";
 
 const SAMPLE_LOGS = [
   "12:03:01 INFO  Starting worker process",
@@ -22,25 +21,21 @@ export function LiveLogs() {
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-4">
-        <select className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground">
+      <div className="flex gap-3">
+        <select className="rounded-lg border border-border bg-white px-3 py-2 text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-stone-200">
           <option>default</option>
           <option>kube-system</option>
           <option>monitoring</option>
         </select>
         <input
-          className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+          className="flex-1 rounded-lg border border-border bg-white px-3 py-2 text-sm text-stone-700 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-200"
           placeholder="Filter logs..."
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
-        <button className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm text-white">
-          <Search className="h-4 w-4" />
-          Search
-        </button>
       </div>
 
-      <div className="rounded-lg border border-border bg-gray-950 p-4 font-mono text-xs">
+      <div className="rounded-xl border border-border bg-stone-50 p-5 font-mono text-xs leading-relaxed">
         {filteredLogs.map((log, i) => {
           const isError = log.includes("ERROR");
           const isWarn = log.includes("WARN");
@@ -48,11 +43,7 @@ export function LiveLogs() {
             <div
               key={i}
               className={`py-0.5 ${
-                isError
-                  ? "text-red-400"
-                  : isWarn
-                    ? "text-amber-400"
-                    : "text-gray-400"
+                isError ? "text-red-600" : isWarn ? "text-amber-600" : "text-stone-600"
               }`}
             >
               {log}

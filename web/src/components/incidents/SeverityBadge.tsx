@@ -6,16 +6,16 @@ interface SeverityBadgeProps {
 }
 
 const colors: Record<string, string> = {
-  critical: "bg-red-500/10 text-red-400 border-red-500/30",
-  warning: "bg-amber-500/10 text-amber-400 border-amber-500/30",
-  info: "bg-blue-500/10 text-blue-400 border-blue-500/30",
+  critical: "bg-red-50 text-red-700 border-red-200",
+  warning: "bg-amber-50 text-amber-700 border-amber-200",
+  info: "bg-blue-50 text-blue-700 border-blue-200",
 };
 
 export function SeverityBadge({ severity, className }: SeverityBadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium",
+        "inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium",
         colors[severity] || colors.info,
         className
       )}
@@ -27,20 +27,20 @@ export function SeverityBadge({ severity, className }: SeverityBadgeProps) {
 
 export function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
-    detected: "bg-amber-500/10 text-amber-400",
-    investigating: "bg-blue-500/10 text-blue-400",
-    remediating: "bg-purple-500/10 text-purple-400",
-    resolved: "bg-emerald-500/10 text-emerald-400",
-    failed: "bg-red-500/10 text-red-400",
-    pending: "bg-gray-500/10 text-gray-400",
-    running: "bg-blue-500/10 text-blue-400",
-    success: "bg-emerald-500/10 text-emerald-400",
-    skipped: "bg-gray-500/10 text-gray-400",
+    detected: "bg-amber-50 text-amber-700 border-amber-200",
+    investigating: "bg-blue-50 text-blue-700 border-blue-200",
+    remediating: "bg-purple-50 text-purple-700 border-purple-200",
+    resolved: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    failed: "bg-red-50 text-red-700 border-red-200",
+    pending: "bg-stone-100 text-stone-600 border-stone-200",
+    running: "bg-blue-50 text-blue-700 border-blue-200",
+    success: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    skipped: "bg-stone-100 text-stone-500 border-stone-200",
   };
 
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+      className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${
         styles[status] || styles.detected
       }`}
     >

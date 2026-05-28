@@ -2,6 +2,7 @@ package kube
 
 import (
 	"context"
+	"io"
 
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -19,12 +20,11 @@ type Client interface {
 	DeletePod(ctx context.Context, namespace, name string, opts metav1.DeleteOptions) error
 	GetDeployment(ctx context.Context, namespace, name string) (*appsv1.Deployment, error)
 	ScaleDeployment(ctx context.Context, namespace, name string, replicas int32) (*appsv1.Deployment, error)
-	RollbackDeployment(ctx context.Context, namespace, name string, revision int64) error
+	UpdateDeployment(ctx context.Context, namespace string, dep *appsv1.Deployment) (*appsv1.Deployment, error)
 	GetEvents(ctx context.Context, namespace string, opts metav1.ListOptions) (*v1.EventList, error)
 	GetPodLogs(ctx context.Context, namespace, name string, tailLines int64) (string, error)
 	WatchPods(ctx context.Context, namespace string) (watch.Interface, error)
 	IsFake() bool
-	PodsInterface(namespace string) kubernetes.PodInterface
 }
 
 type realClient struct {
@@ -84,10 +84,8 @@ func (c *realClient) ScaleDeployment(ctx context.Context, namespace, name string
 	return c.clientset.AppsV1().Deployments(namespace).Update(ctx, dep, metav1.UpdateOptions{})
 }
 
-func (c *realClient) RollbackDeployment(ctx context.Context, namespace, name string, revision int64) error {
-	return c.clientset.AppsV1().Deployments(namespace).Rollback(ctx, name, metav1.RollbackConfig{
-		Revision: revision,
-	})
+func (c *realClient) UpdateDeployment(ctx context.Context, namespace string, dep *appsv1.Deployment) (*appsv1.Deployment, error) {
+	return c.clientset.AppsV1().Deployments(namespace).Update(ctx, dep, metav1.UpdateOptions{})
 }
 
 func (c *realClient) GetEvents(ctx context.Context, namespace string, opts metav1.ListOptions) (*v1.EventList, error) {
@@ -116,6 +114,4 @@ func (c *realClient) IsFake() bool {
 	return ok
 }
 
-func (c *realClient) PodsInterface(namespace string) kubernetes.PodInterface {
-	return c.clientset.CoreV1().Pods(namespace)
-}
+var _ = io.Discard

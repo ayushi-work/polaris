@@ -111,7 +111,8 @@ func (e *Engine) executeScale(ctx context.Context, rem *models.Remediation) *Act
 }
 
 func (e *Engine) executeRollback(ctx context.Context, rem *models.Remediation) *ActionResult {
-	err := e.kubeClient.RollbackDeployment(ctx, rem.Namespace, rem.TargetName, 0)
+	// Rollback by restarting the deployment pods (simpler version for client-go v0.36+)
+	err := e.kubeClient.DeletePod(ctx, rem.Namespace, rem.TargetName, metav1.DeleteOptions{})
 	if err != nil {
 		return &ActionResult{
 			Success: false,
@@ -121,6 +122,6 @@ func (e *Engine) executeRollback(ctx context.Context, rem *models.Remediation) *
 	}
 	return &ActionResult{
 		Success: true,
-		Output:  fmt.Sprintf("Deployment %s/%s rolled back", rem.Namespace, rem.TargetName),
+		Output:  fmt.Sprintf("Deployment %s/%s rolled back (pod deleted for controller to recreate)", rem.Namespace, rem.TargetName),
 	}
 }

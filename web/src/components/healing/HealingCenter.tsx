@@ -10,60 +10,46 @@ export function HealingCenter() {
     refetchInterval: 10000,
   });
 
+  const successCount = remediations?.filter((r) => r.status === "success").length || 0;
+  const total = remediations?.length || 0;
+
   return (
-    <div className="space-y-4">
-      <div className="rounded-lg border border-border bg-card p-6">
-        <h2 className="mb-4 text-lg font-semibold">Remediation Audit Trail</h2>
-        {!remediations?.length ? (
-          <p className="text-sm text-muted-foreground">No remediations yet</p>
+    <div className="space-y-6">
+      <div className="rounded-xl border border-border bg-white p-6">
+        <h2 className="mb-4 font-serif text-xl italic text-stone-900">Remediation Audit Trail</h2>
+        {!total ? (
+          <p className="text-sm text-stone-400 py-8 text-center">No remediations yet</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left">
-                  <th className="pb-2 font-medium text-muted-foreground">ID</th>
-                  <th className="pb-2 font-medium text-muted-foreground">Type</th>
-                  <th className="pb-2 font-medium text-muted-foreground">Target</th>
-                  <th className="pb-2 font-medium text-muted-foreground">Status</th>
-                  <th className="pb-2 font-medium text-muted-foreground">Auto</th>
-                  <th className="pb-2 font-medium text-muted-foreground">Created</th>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-left">
+                <th className="pb-3 text-xs font-medium uppercase tracking-wider text-stone-400">ID</th>
+                <th className="pb-3 text-xs font-medium uppercase tracking-wider text-stone-400">Type</th>
+                <th className="pb-3 text-xs font-medium uppercase tracking-wider text-stone-400">Target</th>
+                <th className="pb-3 text-xs font-medium uppercase tracking-wider text-stone-400">Status</th>
+                <th className="pb-3 text-xs font-medium uppercase tracking-wider text-stone-400">Auto</th>
+                <th className="pb-3 text-xs font-medium uppercase tracking-wider text-stone-400">Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              {remediations!.map((rem) => (
+                <tr key={rem.id} className="border-b border-border">
+                  <td className="py-2.5 font-mono text-xs text-stone-500">{rem.id}</td>
+                  <td className="py-2.5 text-stone-700">{rem.type}</td>
+                  <td className="py-2.5 text-stone-700">{rem.target_name}</td>
+                  <td className="py-2.5"><StatusBadge status={rem.status} /></td>
+                  <td className="py-2.5 text-stone-500">{rem.is_automated ? "Yes" : "No"}</td>
+                  <td className="py-2.5 text-xs text-stone-400">{formatDate(rem.created_at)}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {remediations.map((rem) => (
-                  <tr key={rem.id} className="border-b border-border">
-                    <td className="py-2 font-mono text-xs">{rem.id}</td>
-                    <td className="py-2">{rem.type}</td>
-                    <td className="py-2">{rem.target_name}</td>
-                    <td className="py-2">
-                      <StatusBadge status={rem.status} />
-                    </td>
-                    <td className="py-2">{rem.is_automated ? "Yes" : "No"}</td>
-                    <td className="py-2 text-muted-foreground">
-                      {formatDate(rem.created_at)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <MetricCard label="Total Actions" value={String(remediations?.length || 0)} />
-        <MetricCard
-          label="Success Rate"
-          value={
-            remediations?.length
-              ? `${Math.round(
-                  (remediations.filter((r) => r.status === "success").length /
-                    remediations.length) *
-                    100
-                )}%`
-              : "N/A"
-          }
-        />
+      <div className="grid grid-cols-3 gap-5">
+        <MetricCard label="Total Actions" value={String(total)} />
+        <MetricCard label="Success Rate" value={total ? `${Math.round((successCount / total) * 100)}%` : "N/A"} />
         <MetricCard label="Auto-Healing" value="87%" />
       </div>
     </div>
@@ -72,9 +58,9 @@ export function HealingCenter() {
 
 function MetricCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <div className="text-sm text-muted-foreground">{label}</div>
-      <div className="mt-1 text-xl font-bold text-foreground">{value}</div>
+    <div className="rounded-xl border border-border bg-white p-5">
+      <div className="text-xs font-medium uppercase tracking-wider text-stone-400">{label}</div>
+      <div className="mt-3 font-serif text-xl italic text-stone-800">{value}</div>
     </div>
   );
 }

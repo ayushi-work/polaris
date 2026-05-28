@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { useIncidents } from "@/hooks/useIncidents";
+import { useIncidents, useCreateIncident } from "@/hooks/useIncidents";
 import { SeverityBadge, StatusBadge } from "@/components/incidents/SeverityBadge";
 import { formatDate } from "@/lib/utils";
 import { Plus, AlertTriangle } from "lucide-react";
-import { useCreateIncident } from "@/hooks/useIncidents";
 
 export default function IncidentsPage() {
   const [status, setStatus] = useState("");
@@ -19,14 +18,43 @@ export default function IncidentsPage() {
   const { data: incidents, isLoading } = useIncidents(params);
   const createIncident = useCreateIncident();
 
-  if (isLoading) {
-    return <div className="text-sm text-muted-foreground">Loading incidents...</div>;
-  }
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
+      <div>
+        <h1 className="font-serif text-3xl italic text-stone-900">Incidents</h1>
+        <p className="mt-1 text-sm text-stone-500">Active and resolved incidents across the cluster.</p>
+      </div>
+
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Incidents</h1>
+        <div className="flex gap-3">
+          <select
+            className="rounded-lg border border-border bg-white px-3 py-2 text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-stone-200"
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+          >
+            <option value="">All Statuses</option>
+            <option value="detected">Detected</option>
+            <option value="investigating">Investigating</option>
+            <option value="remediating">Remediating</option>
+            <option value="resolved">Resolved</option>
+          </select>
+          <select
+            className="rounded-lg border border-border bg-white px-3 py-2 text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-stone-200"
+            value={severity}
+            onChange={(e) => setSeverity(e.target.value)}
+          >
+            <option value="">All Severities</option>
+            <option value="critical">Critical</option>
+            <option value="warning">Warning</option>
+            <option value="info">Info</option>
+          </select>
+          <input
+            className="rounded-lg border border-border bg-white px-3 py-2 text-sm text-stone-700 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-200"
+            placeholder="Filter by service..."
+            value={service}
+            onChange={(e) => setService(e.target.value)}
+          />
+        </div>
         <button
           onClick={() =>
             createIncident.mutate({
@@ -40,86 +68,58 @@ export default function IncidentsPage() {
               status: "detected",
             })
           }
-          className="flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm text-white hover:bg-primary/90"
+          className="flex items-center gap-2 rounded-lg bg-stone-800 px-4 py-2 text-sm font-medium text-white hover:bg-stone-700 transition-colors"
         >
           <Plus className="h-4 w-4" />
-          Create Test Incident
+          New Incident
         </button>
       </div>
 
-      <div className="flex gap-4">
-        <select
-          className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-        >
-          <option value="">All Statuses</option>
-          <option value="detected">Detected</option>
-          <option value="investigating">Investigating</option>
-          <option value="remediating">Remediating</option>
-          <option value="resolved">Resolved</option>
-        </select>
-        <select
-          className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
-          value={severity}
-          onChange={(e) => setSeverity(e.target.value)}
-        >
-          <option value="">All Severities</option>
-          <option value="critical">Critical</option>
-          <option value="warning">Warning</option>
-          <option value="info">Info</option>
-        </select>
-        <input
-          className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
-          placeholder="Filter by service..."
-          value={service}
-          onChange={(e) => setService(e.target.value)}
-        />
-      </div>
-
-      <div className="rounded-lg border border-border bg-card">
-        {!incidents?.length ? (
-          <div className="flex flex-col items-center gap-2 py-12 text-muted-foreground">
-            <AlertTriangle className="h-8 w-8" />
-            <p>No incidents found</p>
-          </div>
-        ) : (
+      {isLoading ? (
+        <div className="text-sm text-stone-400">Loading...</div>
+      ) : !incidents?.length ? (
+        <div className="flex flex-col items-center gap-3 rounded-xl border border-border bg-white py-16">
+          <AlertTriangle className="h-8 w-8 text-stone-300" />
+          <p className="text-sm text-stone-400">No incidents found</p>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-border bg-white overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border text-left">
-                <th className="px-4 py-3 font-medium text-muted-foreground">ID</th>
-                <th className="px-4 py-3 font-medium text-muted-foreground">Severity</th>
-                <th className="px-4 py-3 font-medium text-muted-foreground">Service</th>
-                <th className="px-4 py-3 font-medium text-muted-foreground">Type</th>
-                <th className="px-4 py-3 font-medium text-muted-foreground">Status</th>
-                <th className="px-4 py-3 font-medium text-muted-foreground">Detected</th>
+              <tr className="border-b border-border bg-stone-50 text-left">
+                <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-stone-400">ID</th>
+                <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-stone-400">Severity</th>
+                <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-stone-400">Service</th>
+                <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-stone-400">Type</th>
+                <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-stone-400">Status</th>
+                <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-stone-400">Detected</th>
               </tr>
             </thead>
             <tbody>
               {incidents.map((inc) => (
-                <tr key={inc.id} className="border-b border-border hover:bg-accent/50">
-                  <td className="px-4 py-3">
-                    <Link to={`/incidents/${inc.id}`} className="font-mono text-primary hover:underline">
+                <tr key={inc.id} className="border-b border-border hover:bg-stone-50/50 transition-colors">
+                  <td className="px-5 py-3">
+                    <Link to={`/incidents/${inc.id}`} className="font-mono text-xs text-stone-600 hover:text-stone-900">
                       {inc.id}
                     </Link>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-5 py-3">
                     <SeverityBadge severity={inc.severity} />
                   </td>
-                  <td className="px-4 py-3">{inc.resource_name}</td>
-                  <td className="px-4 py-3">{inc.incident_type}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-5 py-3 font-medium text-stone-700">{inc.resource_name}</td>
+                  <td className="px-5 py-3 text-stone-500">{inc.incident_type}</td>
+                  <td className="px-5 py-3">
                     <StatusBadge status={inc.status} />
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">
+                  <td className="px-5 py-3 text-xs text-stone-400">
                     {formatDate(inc.detected_at)}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

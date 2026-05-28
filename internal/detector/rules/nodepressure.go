@@ -2,9 +2,7 @@ package rules
 
 import (
 	"context"
-	"time"
 
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/ayushi/polaris/internal/detector"
@@ -47,5 +45,3 @@ func (r *NodePressureRule) Evaluate(ctx context.Context, client kube.Client, nam
 }
 
 var _ detector.Rule = (*NodePressureRule)(nil)
-var _ = v1.Pod{}
-var _ = time.Now

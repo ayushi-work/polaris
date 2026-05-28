@@ -3,8 +3,8 @@ package rules
 import (
 	"context"
 
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1 "k8s.io/api/core/v1"
 
 	"github.com/ayushi/polaris/internal/detector"
 	"github.com/ayushi/polaris/internal/kube"

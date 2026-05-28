@@ -1,0 +1,43 @@
+server:
+  host: "0.0.0.0"
+  port: 8080
+
+kubernetes:
+  mode: "auto"
+  kubeconfig_path: ""
+  fake_namespace: "default"
+
+storage:
+  type: "sqlite"
+  path: "./data/polaris.db"
+
+llm:
+  provider: "openai"
+  model: "gpt-4o-mini"
+  api_key: "${LLM_API_KEY}"
+  max_tokens: 2048
+  temperature: 0.1
+  timeout: 60s
+
+detector:
+  enabled: true
+  check_interval: 30s
+  pod_watch: true
+  node_watch: true
+  namespaces: []
+  min_severity: "warning"
+  cooldown_period: 5m
+
+remediation:
+  auto_approve: false
+  max_retries: 3
+  allowed_actions: ["restart", "scale_up", "rollback"]
+
+chaos:
+  enabled: true
+  allowed_namespaces: ["default"]
+  require_dangerous: true
+
+logging:
+  level: "info"
+  format: "console"

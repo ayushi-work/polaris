@@ -25,6 +25,7 @@ Thumbs.db
 # Node
 web/node_modules/
 web/dist/
+web/tsconfig.tsbuildinfo
 
 # Coverage
 coverage.out

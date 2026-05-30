@@ -6,17 +6,29 @@ import (
 	"time"
 
 	"github.com/ayushi/polaris/internal/eventbus"
+	"github.com/ayushi/polaris/internal/kube"
 	"github.com/ayushi/polaris/internal/models"
+	"github.com/ayushi/polaris/internal/rca"
+	"github.com/ayushi/polaris/internal/remediation"
 	"github.com/ayushi/polaris/pkg/iforge"
 )
 
 type Orchestrator struct {
-	store models.Store
-	bus   eventbus.EventBus
+	store      models.Store
+	bus        eventbus.EventBus
+	rcaEngine  *rca.Engine
+	remEngine  *remediation.Engine
+	kubeClient kube.Client
 }
 
-func New(store models.Store, bus eventbus.EventBus) *Orchestrator {
-	return &Orchestrator{store: store, bus: bus}
+func New(store models.Store, bus eventbus.EventBus, rcaEngine *rca.Engine, remEngine *remediation.Engine, kubeClient kube.Client) *Orchestrator {
+	return &Orchestrator{
+		store:      store,
+		bus:        bus,
+		rcaEngine:  rcaEngine,
+		remEngine:  remEngine,
+		kubeClient: kubeClient,
+	}
 }
 
 func (o *Orchestrator) Run(ctx context.Context) error {
@@ -26,6 +38,8 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 		eventbus.EventChaosStarted,
 	)
 	defer unsub()
+
+	log.Println("Orchestrator: started, listening for events")
 
 	for {
 		select {
@@ -55,7 +69,8 @@ func (o *Orchestrator) handleIncidentCreated(ctx context.Context, e eventbus.Eve
 
 	log.Printf("Orchestrator: incident created %s (%s)", inc.ID, inc.IncidentType)
 
-	if inc.IncidentType == iforge.IncidentTypeCrashLoopBackOff || inc.IncidentType == iforge.IncidentTypeOOMKilled {
+	// Auto-create a remediation for critical incidents
+	if inc.Severity == iforge.SeverityCritical {
 		rem := &models.Remediation{
 			IncidentID:  inc.ID,
 			Type:        iforge.RemediationTypeRestart,
@@ -75,7 +90,7 @@ func (o *Orchestrator) handleIncidentCreated(ctx context.Context, e eventbus.Eve
 			Payload: rem,
 		})
 
-		log.Printf("Orchestrator: remediation created %s for incident %s", rem.ID, inc.ID)
+		log.Printf("Orchestrator: remediation %s created for incident %s", rem.ID, inc.ID)
 	}
 }
 
@@ -86,7 +101,7 @@ func (o *Orchestrator) handleRCATriggered(ctx context.Context, e eventbus.Event)
 	}
 
 	incidentID := payload["incident_id"]
-	log.Printf("Orchestrator: RCA triggered for incident %s", incidentID)
+	log.Printf("Orchestrator: RCA triggered for %s — calling DeepSeek...", incidentID)
 
 	inc, err := o.store.GetIncident(ctx, incidentID)
 	if err != nil {
@@ -102,27 +117,31 @@ func (o *Orchestrator) handleRCATriggered(ctx context.Context, e eventbus.Event)
 		Payload: inc,
 	})
 
-	rca := &models.RCAResult{
-		IncidentID:      incidentID,
-		Summary:         "Analysis in progress for " + inc.IncidentType + " in " + inc.ResourceName,
-		RootCause:       "Pending detailed analysis",
-		Confidence:      0.0,
-		SuggestedActions: "restart",
-		LLMModel:        "pending",
-		CreatedAt:       time.Now().UTC(),
+	// Actually call the RCA engine (which calls the LLM)
+	result, err := o.rcaEngine.Analyze(ctx, inc)
+	if err != nil {
+		log.Printf("Orchestrator: RCA analysis failed: %v", err)
+		result = &models.RCAResult{
+			IncidentID: incidentID,
+			Summary:    "Analysis failed: " + err.Error(),
+			RootCause:  "Unable to determine root cause",
+			Confidence: 0.0,
+			LLMModel:   "error",
+			CreatedAt:  time.Now().UTC(),
+		}
 	}
 
-	if err := o.store.CreateRCAResult(ctx, rca); err != nil {
-		log.Printf("Orchestrator: failed to create RCA result: %v", err)
+	if err := o.store.CreateRCAResult(ctx, result); err != nil {
+		log.Printf("Orchestrator: failed to store RCA result: %v", err)
 		return
 	}
 
 	o.bus.Publish(eventbus.Event{
 		Type:    eventbus.EventRCACompleted,
-		Payload: rca,
+		Payload: result,
 	})
 
-	log.Printf("Orchestrator: RCA completed for incident %s", incidentID)
+	log.Printf("Orchestrator: RCA completed for %s (confidence: %.0f%%)", incidentID, result.Confidence*100)
 }
 
 func (o *Orchestrator) handleChaosStarted(ctx context.Context, e eventbus.Event) {

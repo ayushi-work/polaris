@@ -12,9 +12,10 @@ storage:
   path: "./data/polaris.db"
 
 llm:
-  provider: "openai"
-  model: "gpt-4o-mini"
-  api_key: "${LLM_API_KEY}"
+  provider: "deepseek"
+  model: "deepseek-chat"
+  api_key: ""
+  base_url: "https://api.deepseek.com/v1"
   max_tokens: 2048
   temperature: 0.1
   timeout: 60s

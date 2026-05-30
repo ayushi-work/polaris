@@ -100,8 +100,8 @@ func DefaultConfig() *Config {
 			CooldownPeriod: 5 * time.Minute,
 		},
 		LLM: LLMConfig{
-			Provider:    "openai",
-			Model:       "gpt-4o-mini",
+			Provider:    "deepseek",
+			Model:       "deepseek-chat",
 			MaxTokens:   2048,
 			Temperature: 0.1,
 			Timeout:     60 * time.Second,

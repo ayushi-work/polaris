@@ -98,7 +98,21 @@ func (e *Engine) callLLM(ctx context.Context, bundle *contextBundle, incident *m
 	if e.llmCfg.APIKey == "" {
 		return nil, fmt.Errorf("no LLM API key configured")
 	}
-	return nil, fmt.Errorf("LLM integration not yet implemented")
+
+	llm := NewLLMClient(e.llmCfg)
+	prompt := BuildPrompt(incident, bundle.logs, bundle.events)
+	response, err := llm.Analyze(ctx, prompt)
+	if err != nil {
+		return nil, err
+	}
+
+	return &analysisResult{
+		summary:          response.Summary,
+		rootCause:        response.RootCause,
+		confidence:       response.Confidence,
+		suggestedActions: response.SuggestedActions,
+		rawOutput:        response.Raw,
+	}, nil
 }
 
 func heuristicAnalysis(incident *models.Incident, ctxBundle *contextBundle) *analysisResult {

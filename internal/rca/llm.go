@@ -36,7 +36,7 @@ func NewLLMClient(cfg config.LLMConfig) *LLMClient {
 func (c *LLMClient) Analyze(ctx context.Context, prompt string) (*LLMResponse, error) {
 	baseURL := c.cfg.BaseURL
 	if baseURL == "" {
-		baseURL = "https://api.openai.com/v1"
+		baseURL = "https://api.deepseek.com/v1"
 	}
 
 	body := map[string]interface{}{

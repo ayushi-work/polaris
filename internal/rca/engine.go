@@ -18,12 +18,14 @@ import (
 type Engine struct {
 	kubeClient kube.Client
 	llmCfg     config.LLMConfig
+	store      models.Store
 }
 
-func NewEngine(kubeClient kube.Client, llmCfg config.LLMConfig) *Engine {
+func NewEngine(kubeClient kube.Client, llmCfg config.LLMConfig, store models.Store) *Engine {
 	return &Engine{
 		kubeClient: kubeClient,
 		llmCfg:     llmCfg,
+		store:      store,
 	}
 }
 
@@ -35,7 +37,9 @@ func (e *Engine) Analyze(ctx context.Context, incident *models.Incident) (*model
 		return nil, fmt.Errorf("collect context: %w", err)
 	}
 
-	analysis, err := e.callLLM(ctx, ctxBundle, incident)
+	pastLearnings := e.queryPastIncidents(ctx, incident)
+
+	analysis, err := e.callLLM(ctx, ctxBundle, incident, pastLearnings)
 	if err != nil {
 		log.Printf("RCA Engine: LLM call failed, using heuristics: %v", err)
 		analysis = heuristicAnalysis(incident, ctxBundle)
@@ -147,13 +151,13 @@ func syntheticEvents(incident *models.Incident) string {
 	}
 }
 
-func (e *Engine) callLLM(ctx context.Context, bundle *contextBundle, incident *models.Incident) (*analysisResult, error) {
+func (e *Engine) callLLM(ctx context.Context, bundle *contextBundle, incident *models.Incident, pastLearnings string) (*analysisResult, error) {
 	if e.llmCfg.APIKey == "" {
 		return nil, fmt.Errorf("no LLM API key configured")
 	}
 
 	llm := NewLLMClient(e.llmCfg)
-	prompt := BuildPrompt(incident, bundle.logs, bundle.events)
+	prompt := BuildPrompt(incident, bundle.logs, bundle.events, pastLearnings)
 	response, err := llm.Analyze(ctx, prompt)
 	if err != nil {
 		return nil, err
@@ -168,6 +172,42 @@ func (e *Engine) callLLM(ctx context.Context, bundle *contextBundle, incident *m
 		evidenceEvents:   response.EvidenceEvents,
 		rawOutput:        response.Raw,
 	}, nil
+}
+
+func (e *Engine) queryPastIncidents(ctx context.Context, incident *models.Incident) string {
+	all, err := e.store.ListIncidents(ctx, models.IncidentFilter{Limit: 200})
+	if err != nil {
+		return ""
+	}
+
+	var similar []string
+	for _, past := range all {
+		if past.ID == incident.ID {
+			continue
+		}
+		if past.IncidentType != incident.IncidentType {
+			continue
+		}
+		if past.Status != "resolved" {
+			continue
+		}
+
+		rca, err := e.store.GetRCAResult(ctx, past.ID)
+		if err != nil || rca == nil {
+			continue
+		}
+
+		similar = append(similar, fmt.Sprintf(
+			"Incident %s (%s): root cause was '%s'. Action taken: %s. Result: resolved.",
+			past.ID, past.ResourceName, rca.RootCause, rca.SuggestedActions,
+		))
+
+		if len(similar) >= 3 {
+			break
+		}
+	}
+
+	return strings.Join(similar, "\n")
 }
 
 func heuristicAnalysis(incident *models.Incident, ctxBundle *contextBundle) *analysisResult {

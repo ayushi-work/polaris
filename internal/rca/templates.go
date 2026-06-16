@@ -15,7 +15,10 @@ Severity: {{ .Incident.Severity }}
 Resource: {{ .Incident.ResourceName }}
 Namespace: {{ .Incident.Namespace }}
 Message: {{ .Incident.Message }}
-
+{{ if .PastLearnings }}
+## Previous Similar Incidents (learn from these)
+{{ .PastLearnings }}
+{{ end }}
 ## Recent Logs
 {{ .Logs }}
 
@@ -36,21 +39,23 @@ Return ONLY valid JSON (no markdown, no backticks):
 For evidence_logs and evidence_events: copy the EXACT lines from the logs and events above that support your diagnosis. Do not paraphrase. If no relevant evidence exists, use empty arrays.`
 
 type promptData struct {
-	Incident *models.Incident
-	Logs     string
-	Events   string
+	Incident      *models.Incident
+	Logs          string
+	Events        string
+	PastLearnings string
 }
 
-func BuildPrompt(incident *models.Incident, logs, events string) string {
+func BuildPrompt(incident *models.Incident, logs, events, pastLearnings string) string {
 	tmpl, err := template.New("rca").Parse(promptTemplate)
 	if err != nil {
 		return promptTemplate
 	}
 
 	data := promptData{
-		Incident: incident,
-		Logs:     logs,
-		Events:   events,
+		Incident:      incident,
+		Logs:          logs,
+		Events:        events,
+		PastLearnings: pastLearnings,
 	}
 
 	var buf bytes.Buffer

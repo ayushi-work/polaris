@@ -91,7 +91,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create engines
-	rcaEngine := rca.NewEngine(kubeClient, cfg.LLM)
+	rcaEngine := rca.NewEngine(kubeClient, cfg.LLM, store)
 	remEngine := remediation.NewEngine(kubeClient, cfg.Remediation.MaxRetries, cfg.Remediation.AutoApprove)
 
 	// Start orchestrator

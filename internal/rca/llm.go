@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/ayushi/polaris/internal/config"
 )
@@ -17,11 +16,13 @@ type LLMClient struct {
 }
 
 type LLMResponse struct {
-	Summary          string  `json:"summary"`
-	RootCause        string  `json:"root_cause"`
-	Confidence       float64 `json:"confidence"`
-	SuggestedActions string  `json:"suggested_actions"`
-	Raw              string  `json:"raw"`
+	Summary          string   `json:"summary"`
+	RootCause        string   `json:"root_cause"`
+	Confidence       float64  `json:"confidence"`
+	SuggestedActions string   `json:"suggested_actions"`
+	EvidenceLogs     []string `json:"evidence_logs"`
+	EvidenceEvents   []string `json:"evidence_events"`
+	Raw              string   `json:"-"`
 }
 
 func NewLLMClient(cfg config.LLMConfig) *LLMClient {
@@ -95,25 +96,14 @@ func (c *LLMClient) Analyze(ctx context.Context, prompt string) (*LLMResponse, e
 	content := result.Choices[0].Message.Content
 
 	var analysis LLMResponse
+	analysis.Raw = content
 	if err := json.Unmarshal([]byte(content), &analysis); err != nil {
-		analysis = LLMResponse{
-			Summary:   content,
-			RootCause: "See summary",
-			Raw:       content,
-		}
+		// LLM didn't return valid JSON — use the raw text as summary
+		analysis.Summary = content
+		analysis.RootCause = "See summary"
 	}
 
 	return &analysis, nil
 }
 
-const systemPrompt = `You are a Kubernetes incident analyst. Given pod logs, events, and metrics, determine the root cause of the incident and suggest remediation actions.
-
-Respond ONLY in valid JSON with this structure:
-{
-  "summary": "One-line summary of the incident",
-  "root_cause": "Detailed root cause analysis",
-  "confidence": 0.0-1.0,
-  "suggested_actions": "comma-separated list: restart,scale_up,scale_down,rollback,drain_node,cordon_node,delete_pod"
-}`
-
-var _ = time.Now
+const systemPrompt = `You are a Kubernetes incident analyst. For every diagnosis, you MUST cite specific evidence from the provided logs and events. Copy exact log lines and event messages that support your conclusion. Do not guess — if the evidence isn't there, say so.`

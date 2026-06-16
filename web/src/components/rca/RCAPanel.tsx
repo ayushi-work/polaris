@@ -1,12 +1,23 @@
-import { Lightbulb, AlertCircle, ListChecks } from "lucide-react";
-import type { RCAResult } from "@/types";
+import { Lightbulb, AlertCircle, ListChecks, FileText, Activity } from "lucide-react";
+import type { RCAResult, Evidence } from "@/types";
 
 interface Props {
   rca: RCAResult;
 }
 
+function parseEvidence(jsonStr: string): string[] {
+  try {
+    const parsed = JSON.parse(jsonStr);
+    if (Array.isArray(parsed)) return parsed;
+  } catch {}
+  return jsonStr ? [jsonStr] : [];
+}
+
 export function RCAPanel({ rca }: Props) {
   const confPct = Math.round(rca.confidence * 100);
+  const citedLogs = parseEvidence(rca.logs_snippet);
+  const citedEvents = parseEvidence(rca.events_summary);
+  const hasEvidence = citedLogs.length > 0 || citedEvents.length > 0;
 
   return (
     <div className="space-y-4">
@@ -25,28 +36,48 @@ export function RCAPanel({ rca }: Props) {
         <p className="text-sm text-stone-600 leading-relaxed">{rca.root_cause}</p>
       </div>
 
-      <div className="rounded-xl border border-border bg-white p-5">
-        <div className="flex items-center gap-2 mb-3">
-          <AlertCircle className="h-4 w-4 text-blue-500" />
-          <span className="text-xs font-medium uppercase tracking-wider text-stone-400">Evidence</span>
+      {hasEvidence && (
+        <div className="rounded-xl border border-border bg-white p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <AlertCircle className="h-4 w-4 text-blue-500" />
+            <span className="text-xs font-medium uppercase tracking-wider text-stone-400">Evidence cited by LLM</span>
+          </div>
+
+          {citedLogs.length > 0 && (
+            <div className="mb-4">
+              <div className="flex items-center gap-1.5 mb-2">
+                <FileText className="h-3.5 w-3.5 text-stone-400" />
+                <span className="text-xs font-medium text-stone-500">Log citations</span>
+              </div>
+              <div className="space-y-1">
+                {citedLogs.map((line, i) => (
+                  <div key={i} className="flex gap-2 rounded-md bg-red-50/50 px-3 py-1.5 text-xs font-mono text-red-800 border border-red-100">
+                    <span className="text-red-400 select-none">{i + 1}.</span>
+                    <span className="truncate">{line}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {citedEvents.length > 0 && (
+            <div>
+              <div className="flex items-center gap-1.5 mb-2">
+                <Activity className="h-3.5 w-3.5 text-stone-400" />
+                <span className="text-xs font-medium text-stone-500">Event citations</span>
+              </div>
+              <div className="space-y-1">
+                {citedEvents.map((line, i) => (
+                  <div key={i} className="flex gap-2 rounded-md bg-amber-50/50 px-3 py-1.5 text-xs font-mono text-amber-800 border border-amber-100">
+                    <span className="text-amber-400 select-none">{i + 1}.</span>
+                    <span className="truncate">{line}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-        {rca.logs_snippet && (
-          <div className="mb-3">
-            <span className="text-xs text-stone-400">Logs</span>
-            <pre className="mt-1 max-h-32 overflow-y-auto rounded-lg bg-stone-50 p-3 text-xs font-mono text-stone-600 leading-relaxed">
-              {rca.logs_snippet.slice(0, 500)}
-            </pre>
-          </div>
-        )}
-        {rca.events_summary && (
-          <div>
-            <span className="text-xs text-stone-400">Events</span>
-            <pre className="mt-1 max-h-32 overflow-y-auto rounded-lg bg-stone-50 p-3 text-xs font-mono text-stone-600 leading-relaxed">
-              {rca.events_summary.slice(0, 500)}
-            </pre>
-          </div>
-        )}
-      </div>
+      )}
 
       <div className="rounded-xl border border-border bg-white p-5">
         <div className="flex items-center gap-2 mb-3">

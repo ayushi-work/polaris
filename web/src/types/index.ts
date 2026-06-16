@@ -49,6 +49,11 @@ export interface RCAResult {
   created_at: string;
 }
 
+export interface Evidence {
+  logs: string[];
+  events: string[];
+}
+
 export interface ChaosScenario {
   id: string;
   name: string;

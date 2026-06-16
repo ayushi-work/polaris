@@ -7,7 +7,7 @@ import (
 	"github.com/ayushi/polaris/internal/models"
 )
 
-const promptTemplate = `Analyze the following Kubernetes incident:
+const promptTemplate = `Analyze the following Kubernetes incident and return a JSON response.
 
 Incident ID: {{ .Incident.ID }}
 Type: {{ .Incident.IncidentType }}
@@ -22,7 +22,18 @@ Message: {{ .Incident.Message }}
 ## Kubernetes Events
 {{ .Events }}
 
-Based on the above information, what is the root cause of this incident? What remediation actions do you recommend?`
+Return ONLY valid JSON (no markdown, no backticks):
+
+{
+  "summary": "one-line summary",
+  "root_cause": "detailed explanation of what happened and why",
+  "confidence": 0.0-1.0,
+  "suggested_actions": "comma-separated: restart,scale_up,scale_down,rollback,delete_pod",
+  "evidence_logs": ["log line 1 that proves this", "log line 2 that supports this"],
+  "evidence_events": ["event 1 that correlates", "event 2 that confirms the timeline"]
+}
+
+For evidence_logs and evidence_events: copy the EXACT lines from the logs and events above that support your diagnosis. Do not paraphrase. If no relevant evidence exists, use empty arrays.`
 
 type promptData struct {
 	Incident *models.Incident

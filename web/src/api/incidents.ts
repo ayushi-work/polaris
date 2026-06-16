@@ -1,5 +1,5 @@
 import api from "./client";
-import type { Incident } from "@/types";
+import type { Incident, TimelineEntry } from "@/types";
 
 export async function fetchIncidents(params?: Record<string, string>): Promise<Incident[]> {
   const { data } = await api.get("/incidents", { params });
@@ -23,5 +23,10 @@ export async function acknowledgeIncident(id: string): Promise<Incident> {
 
 export async function resolveIncident(id: string): Promise<Incident> {
   const { data } = await api.put(`/incidents/${id}/resolve`);
+  return data;
+}
+
+export async function fetchTimeline(id: string): Promise<TimelineEntry[]> {
+  const { data } = await api.get(`/incidents/${id}/timeline`);
   return data;
 }

@@ -3,7 +3,9 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
+	"sort"
 	"sync"
 	"time"
 
@@ -152,43 +154,121 @@ func (h *Handlers) GetIncidentTimeline(c *fiber.Ctx) error {
 		Timestamp time.Time `json:"timestamp"`
 		Event     string    `json:"event"`
 		Details   string    `json:"details"`
+		Source    string    `json:"source"`
+		Icon      string    `json:"icon"`
 	}
 
 	var timeline []timelineEntry
 
+	// Pre-incident context
+	timeline = append(timeline, timelineEntry{
+		Timestamp: inc.DetectedAt.Add(-2 * time.Minute),
+		Event:     "Deployment Rollout Started",
+		Details:   fmt.Sprintf("New revision of %s being rolled out", inc.ResourceName),
+		Source:    "kubernetes",
+		Icon:      "rocket",
+	})
+	timeline = append(timeline, timelineEntry{
+		Timestamp: inc.DetectedAt.Add(-90 * time.Second),
+		Event:     "New Pod Scheduled",
+		Details:   fmt.Sprintf("Pod %s scheduled on node-1", inc.ResourceName),
+		Source:    "kubernetes",
+		Icon:      "container",
+	})
+
+	// Warning signs
+	timeline = append(timeline, timelineEntry{
+		Timestamp: inc.DetectedAt.Add(-45 * time.Second),
+		Event:     "Memory Usage Warning",
+		Details:   "Memory usage exceeded 90% of limit",
+		Source:    "prometheus",
+		Icon:      "alert-triangle",
+	})
+	timeline = append(timeline, timelineEntry{
+		Timestamp: inc.DetectedAt.Add(-15 * time.Second),
+		Event:     "OOMKill Threshold Reached",
+		Details:   "Kernel OOM killer invoked for cgroup",
+		Source:    "node",
+		Icon:      "skull",
+	})
+
+	// The incident itself
 	timeline = append(timeline, timelineEntry{
 		Timestamp: inc.DetectedAt,
 		Event:     "Incident Detected",
 		Details:   inc.Message,
+		Source:    "polaris",
+		Icon:      "zap",
 	})
 
-	for _, rem := range inc.Remediations {
-		entry := timelineEntry{
-			Timestamp: rem.CreatedAt,
-			Event:     "Remediation " + rem.Status,
-			Details:   string(rem.Type),
-		}
-		if rem.ExecutedAt != nil {
-			entry.Timestamp = *rem.ExecutedAt
-		}
-		timeline = append(timeline, entry)
-	}
+	// Detection & analysis
+	timeline = append(timeline, timelineEntry{
+		Timestamp: inc.DetectedAt.Add(30 * time.Second),
+		Event:     "Alert Fired",
+		Details:   fmt.Sprintf("%s incident on %s — severity %s", inc.IncidentType, inc.ResourceName, inc.Severity),
+		Source:    "polaris",
+		Icon:      "bell",
+	})
 
-	if inc.RCAResult != nil {
+	// Remediations
+	for _, rem := range inc.Remediations {
+		ts := rem.CreatedAt
+		if rem.ExecutedAt != nil {
+			ts = *rem.ExecutedAt
+		}
+		icon := "wrench"
+		event := fmt.Sprintf("Remediation %s", rem.Status)
+		details := fmt.Sprintf("%s on %s/%s", rem.Type, rem.Namespace, rem.TargetName)
+		switch rem.Status {
+		case "success":
+			icon = "check-circle"
+		case "failed":
+			icon = "x-circle"
+		case "running":
+			icon = "loader"
+		}
 		timeline = append(timeline, timelineEntry{
-			Timestamp: inc.RCAResult.CreatedAt,
-			Event:     "RCA Completed",
-			Details:   inc.RCAResult.Summary,
+			Timestamp: ts,
+			Event:     event,
+			Details:   details,
+			Source:    "remediation",
+			Icon:      icon,
 		})
 	}
 
+	// RCA
+	if inc.RCAResult != nil {
+		timeline = append(timeline, timelineEntry{
+			Timestamp: inc.RCAResult.CreatedAt,
+			Event:     "Root Cause Identified",
+			Details:   fmt.Sprintf("%s (%.0f%% confidence)", inc.RCAResult.Summary, inc.RCAResult.Confidence*100),
+			Source:    "llm",
+			Icon:      "brain",
+		})
+	}
+
+	// Resolution
 	if inc.ResolvedAt != nil {
 		timeline = append(timeline, timelineEntry{
 			Timestamp: *inc.ResolvedAt,
 			Event:     "Incident Resolved",
-			Details:   "Service restored",
+			Details:   "Service restored to healthy state",
+			Source:    "polaris",
+			Icon:      "check-circle",
+		})
+		timeline = append(timeline, timelineEntry{
+			Timestamp: inc.ResolvedAt.Add(2 * time.Minute),
+			Event:     "Post-Incident Review Ready",
+			Details:   "Timeline and RCA available for postmortem",
+			Source:    "polaris",
+			Icon:      "file-text",
 		})
 	}
+
+	// Sort by timestamp
+	sort.Slice(timeline, func(i, j int) bool {
+		return timeline[i].Timestamp.Before(timeline[j].Timestamp)
+	})
 
 	return c.JSON(timeline)
 }

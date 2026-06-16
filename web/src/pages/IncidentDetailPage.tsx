@@ -1,5 +1,7 @@
 import { useParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { useIncident, useAcknowledgeIncident, useResolveIncident } from "@/hooks/useIncidents";
+import { fetchTimeline } from "@/api/incidents";
 import { SeverityBadge, StatusBadge } from "@/components/incidents/SeverityBadge";
 import { IncidentTimeline } from "@/components/incidents/IncidentTimeline";
 import { RCAPanel } from "@/components/rca/RCAPanel";
@@ -9,6 +11,11 @@ import { AlertTriangle } from "lucide-react";
 export default function IncidentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data: incident, isLoading } = useIncident(id || "");
+  const { data: timeline = [] } = useQuery({
+    queryKey: ["timeline", id],
+    queryFn: () => fetchTimeline(id!),
+    enabled: !!id,
+  });
   const acknowledge = useAcknowledgeIncident();
   const resolve = useResolveIncident();
 
@@ -80,12 +87,7 @@ export default function IncidentDetailPage() {
 
       <div className="rounded-xl border border-border bg-white p-5">
         <h2 className="mb-4 text-xs font-medium uppercase tracking-wider text-stone-400">Timeline</h2>
-        <IncidentTimeline entries={[
-          { timestamp: incident.detected_at, event: "Incident Detected", details: incident.message },
-          ...(incident.rca_result ? [{ timestamp: incident.rca_result.created_at, event: "RCA Completed", details: incident.rca_result.summary }] : []),
-          ...(incident.remediations?.map(r => ({ timestamp: r.executed_at || r.created_at, event: `Remediation ${r.status}`, details: `${r.type} on ${r.target_name}` })) || []),
-          ...(incident.resolved_at ? [{ timestamp: incident.resolved_at, event: "Incident Resolved", details: "Service restored" }] : []),
-        ]} />
+        <IncidentTimeline entries={timeline} />
       </div>
 
       {incident.rca_result ? (

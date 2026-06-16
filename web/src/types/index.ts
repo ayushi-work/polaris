@@ -72,6 +72,8 @@ export interface TimelineEntry {
   timestamp: string;
   event: string;
   details: string;
+  source: string;
+  icon: string;
 }
 
 export interface DashboardMetrics {

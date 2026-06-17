@@ -34,7 +34,8 @@ func NewLLMClient(cfg config.LLMConfig) *LLMClient {
 	}
 }
 
-func (c *LLMClient) Analyze(ctx context.Context, prompt string) (*LLMResponse, error) {
+// AnalyzeWithSystem sends a prompt with a custom system message.
+func (c *LLMClient) AnalyzeWithSystem(ctx context.Context, system, prompt string) (*LLMResponse, error) {
 	baseURL := c.cfg.BaseURL
 	if baseURL == "" {
 		baseURL = "https://api.deepseek.com/v1"
@@ -43,7 +44,7 @@ func (c *LLMClient) Analyze(ctx context.Context, prompt string) (*LLMResponse, e
 	body := map[string]interface{}{
 		"model": c.cfg.Model,
 		"messages": []map[string]string{
-			{"role": "system", "content": systemPrompt},
+			{"role": "system", "content": system},
 			{"role": "user", "content": prompt},
 		},
 		"temperature": c.cfg.Temperature,
@@ -79,10 +80,6 @@ func (c *LLMClient) Analyze(ctx context.Context, prompt string) (*LLMResponse, e
 				Content string `json:"content"`
 			} `json:"message"`
 		} `json:"choices"`
-		Usage struct {
-			PromptTokens     int `json:"prompt_tokens"`
-			CompletionTokens int `json:"completion_tokens"`
-		} `json:"usage"`
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
@@ -98,12 +95,15 @@ func (c *LLMClient) Analyze(ctx context.Context, prompt string) (*LLMResponse, e
 	var analysis LLMResponse
 	analysis.Raw = content
 	if err := json.Unmarshal([]byte(content), &analysis); err != nil {
-		// LLM didn't return valid JSON — use the raw text as summary
 		analysis.Summary = content
 		analysis.RootCause = "See summary"
 	}
 
 	return &analysis, nil
+}
+
+func (c *LLMClient) Analyze(ctx context.Context, prompt string) (*LLMResponse, error) {
+	return c.AnalyzeWithSystem(ctx, systemPrompt, prompt)
 }
 
 const systemPrompt = `You are a Kubernetes incident analyst. For every diagnosis, you MUST cite specific evidence from the provided logs and events. Copy exact log lines and event messages that support your conclusion. Do not guess — if the evidence isn't there, say so.`

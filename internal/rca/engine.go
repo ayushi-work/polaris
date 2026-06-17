@@ -39,7 +39,11 @@ func (e *Engine) Analyze(ctx context.Context, incident *models.Incident) (*model
 
 	pastLearnings := e.queryPastIncidents(ctx, incident)
 
-	analysis, err := e.callLLM(ctx, ctxBundle, incident, pastLearnings)
+	analysis, err := e.multiAgentAnalyze(ctx, ctxBundle, incident, pastLearnings)
+	if err != nil {
+		log.Printf("RCA Engine: multi-agent failed, trying single call: %v", err)
+		analysis, err = e.callLLM(ctx, ctxBundle, incident, pastLearnings)
+	}
 	if err != nil {
 		log.Printf("RCA Engine: LLM call failed, using heuristics: %v", err)
 		analysis = heuristicAnalysis(incident, ctxBundle)
@@ -149,6 +153,137 @@ func syntheticEvents(incident *models.Incident) string {
 	default:
 		return `[Normal] Scheduled: Successfully assigned pod to node-1`
 	}
+}
+
+type agentFinding struct {
+	Findings   string   `json:"findings"`
+	Severity   string   `json:"severity"`
+	Evidence   []string `json:"evidence"`
+	Confidence float64  `json:"confidence"`
+}
+
+func (e *Engine) multiAgentAnalyze(ctx context.Context, bundle *contextBundle, incident *models.Incident, pastLearnings string) (*analysisResult, error) {
+	if e.llmCfg.APIKey == "" {
+		return nil, fmt.Errorf("no LLM API key configured")
+	}
+
+	llm := NewLLMClient(e.llmCfg)
+	deployCtx := fmt.Sprintf("Incident %s: %s on %s/%s — %s",
+		incident.ID, incident.IncidentType, incident.Namespace, incident.ResourceName, incident.Message)
+
+	type agentResult struct {
+		name    string
+		finding *agentFinding
+		err     error
+	}
+
+	ch := make(chan agentResult, 3)
+
+	// Logs agent
+	go func() {
+		resp, err := llm.AnalyzeWithSystem(ctx, logsAgentPrompt, "Container logs for "+deployCtx+":\n\n"+bundle.logs)
+		if err != nil {
+			ch <- agentResult{name: "logs", err: err}
+			return
+		}
+		var f agentFinding
+		if err := json.Unmarshal([]byte(resp.Raw), &f); err != nil {
+			f.Findings = resp.Summary
+			f.Evidence = resp.EvidenceLogs
+		}
+		ch <- agentResult{name: "logs", finding: &f}
+	}()
+
+	// Events agent
+	go func() {
+		resp, err := llm.AnalyzeWithSystem(ctx, eventsAgentPrompt, "Kubernetes events for "+deployCtx+":\n\n"+bundle.events)
+		if err != nil {
+			ch <- agentResult{name: "events", err: err}
+			return
+		}
+		var f agentFinding
+		if err := json.Unmarshal([]byte(resp.Raw), &f); err != nil {
+			f.Findings = resp.Summary
+			f.Evidence = resp.EvidenceEvents
+		}
+		ch <- agentResult{name: "events", finding: &f}
+	}()
+
+	// Deploy agent
+	go func() {
+		resp, err := llm.AnalyzeWithSystem(ctx, deployAgentPrompt, "Analyze this deployment incident: "+deployCtx)
+		if err != nil {
+			ch <- agentResult{name: "deploy", err: err}
+			return
+		}
+		var f agentFinding
+		if err := json.Unmarshal([]byte(resp.Raw), &f); err != nil {
+			f.Findings = resp.Summary
+		}
+		ch <- agentResult{name: "deploy", finding: &f}
+	}()
+
+	// Collect results
+	results := make(map[string]*agentFinding)
+	var firstErr error
+	for i := 0; i < 3; i++ {
+		r := <-ch
+		if r.err != nil && firstErr == nil {
+			firstErr = r.err
+		}
+		if r.finding != nil {
+			results[r.name] = r.finding
+		}
+	}
+
+	// Need at least 2 agents to succeed
+	if len(results) < 2 {
+		return nil, fmt.Errorf("only %d agents succeeded: %w", len(results), firstErr)
+	}
+
+	log.Printf("RCA Engine: %d agents completed, synthesizing...", len(results))
+
+	// Synthesis
+	logsFindings := formatFinding(results["logs"])
+	eventsFindings := formatFinding(results["events"])
+	deployFindings := formatFinding(results["deploy"])
+
+	synthPrompt := BuildSynthesisPrompt(logsFindings, eventsFindings, deployFindings, pastLearnings)
+	resp, err := llm.AnalyzeWithSystem(ctx,
+		"You are a lead incident investigator synthesizing findings from multiple specialists into one definitive root cause analysis.",
+		synthPrompt)
+	if err != nil {
+		return nil, fmt.Errorf("synthesis failed: %w", err)
+	}
+
+	avgConfidence := 0.0
+	for _, f := range results {
+		avgConfidence += f.Confidence
+	}
+	avgConfidence /= float64(len(results))
+
+	var allLogEvidence, allEventEvidence []string
+	for _, f := range results {
+		allLogEvidence = append(allLogEvidence, f.Evidence...)
+	}
+
+	return &analysisResult{
+		summary:          resp.Summary,
+		rootCause:        resp.RootCause,
+		confidence:       (resp.Confidence + avgConfidence) / 2,
+		suggestedActions: resp.SuggestedActions,
+		evidenceLogs:     append(allLogEvidence, resp.EvidenceLogs...),
+		evidenceEvents:   append(allEventEvidence, resp.EvidenceEvents...),
+		rawOutput:        resp.Raw,
+	}, nil
+}
+
+func formatFinding(f *agentFinding) string {
+	if f == nil {
+		return "No analysis available."
+	}
+	return fmt.Sprintf("Findings: %s\nSeverity: %s\nConfidence: %.0f%%\nEvidence: %s",
+		f.Findings, f.Severity, f.Confidence*100, strings.Join(f.Evidence, "; "))
 }
 
 func (e *Engine) callLLM(ctx context.Context, bundle *contextBundle, incident *models.Incident, pastLearnings string) (*analysisResult, error) {

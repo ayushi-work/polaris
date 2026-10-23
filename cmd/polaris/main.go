@@ -24,6 +24,7 @@ import (
 	"github.com/ayushi/polaris/internal/prometheus"
 	"github.com/ayushi/polaris/internal/rca"
 	"github.com/ayushi/polaris/internal/remediation"
+	"github.com/ayushi/polaris/internal/runbooks"
 )
 
 var (
@@ -104,8 +105,16 @@ func runServe(cmd *cobra.Command, args []string) error {
 	safetyGate := remediation.NewSafetyGate(kubeClient, store, cfg.Remediation.AllowedActions, cfg.Remediation.MaxActionsPerHour)
 	chaosEngine := chaos.NewEngine(kubeClient, cfg.Chaos)
 
+	// Load runbook ladders (optional directory)
+	runbookReg, err := runbooks.LoadDir("configs/runbooks")
+	if err != nil {
+		log.Printf("Runbooks: %v", err)
+	} else if runbookReg.Len() > 0 {
+		log.Printf("Runbooks: loaded %d runbooks", runbookReg.Len())
+	}
+
 	// Start orchestrator
-	orch := orchestrator.New(store, bus, rcaEngine, remEngine, chaosEngine, kubeClient)
+	orch := orchestrator.New(store, bus, rcaEngine, remEngine, chaosEngine, kubeClient, runbookReg)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

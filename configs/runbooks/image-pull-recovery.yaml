@@ -1,0 +1,6 @@
+name: image-pull-recovery
+description: "Bad image tags are deployment-level faults: roll straight back"
+match:
+  incident_types: ["ImagePullBackOff", "ErrImagePull"]
+steps:
+  - action: rollback

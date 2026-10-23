@@ -1,0 +1,8 @@
+name: crash-recovery
+description: "Restart first; if the crash persists after restart, roll back to the previous revision"
+match:
+  incident_types: ["CrashLoopBackOff"]
+steps:
+  - action: restart
+    wait: 2m
+  - action: rollback

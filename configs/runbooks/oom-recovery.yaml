@@ -1,0 +1,14 @@
+# Escalation ladder for OOMKilled incidents.
+# The orchestrator creates the first step (restart); if the previous step
+# FAILS, the next step is auto-created, escalating gradually.
+name: oom-recovery
+description: "Restart, then add capacity (scale up), then roll back the deployment"
+match:
+  incident_types: ["OOMKilled", "HighRestartCount"]
+  severities: ["critical", "warning"]
+steps:
+  - action: restart
+    wait: 2m
+  - action: scale_up
+    min_replicas: 2
+  - action: rollback

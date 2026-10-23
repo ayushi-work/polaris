@@ -1,0 +1,58 @@
+name: polaris
+
+services:
+  polaris:
+    build:
+      context: .
+      dockerfile: deployments/Dockerfile
+    environment:
+      POLARIS_LLM_API_KEY: ${POLARIS_LLM_API_KEY:-}
+      POLARIS_ALERTING_WEBHOOK_URL: ${POLARIS_ALERTING_WEBHOOK_URL:-}
+      POLARIS_ALERTING_ENABLED: "true"
+      POLARIS_STORAGE_TYPE: ${POLARIS_STORAGE_TYPE:-sqlite}
+      POLARIS_STORAGE_DSN: ${POLARIS_STORAGE_DSN:-postgres://polaris:polaris@postgres:5432/polaris?sslmode=disable}
+      POLARIS_METRICS_PROMETHEUS_ENABLED: "true"
+      POLARIS_METRICS_PROMETHEUS_URL: http://prometheus:9090
+    ports:
+      - "8080:8080"
+    volumes:
+      - polaris-data:/app/data
+    depends_on:
+      prometheus:
+        condition: service_started
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: deployments/web.Dockerfile
+    ports:
+      - "5173:80"
+    depends_on:
+      - polaris
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    volumes:
+      - ./deployments/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    profiles: ["postgres"]
+    environment:
+      POSTGRES_USER: polaris
+      POSTGRES_PASSWORD: polaris
+      POSTGRES_DB: polaris
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+volumes:
+  polaris-data:
+  pg-data:

@@ -1,0 +1,10 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # Node/device metrics arrive via kube-state-metrics/cadvisor in real
+  # clusters; in dry-run mode this scrape list stays intentionally minimal.

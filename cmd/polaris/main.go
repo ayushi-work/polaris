@@ -72,7 +72,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 		log.Println("Running in dry-run (fake) mode")
 	}
 
-	store, err := models.NewSQLiteStore(cfg.Storage.Path)
+	store, err := models.NewStore(cfg.Storage)
 	if err != nil {
 		return fmt.Errorf("init store: %w", err)
 	}

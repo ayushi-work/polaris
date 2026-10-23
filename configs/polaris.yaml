@@ -8,8 +8,9 @@ kubernetes:
   fake_namespace: "default"
 
 storage:
-  type: "sqlite"
+  type: "sqlite"   # sqlite | postgres
   path: "./data/polaris.db"
+  dsn: ""          # postgres DSN, e.g. postgres://polaris:polaris@localhost:5432/polaris?sslmode=disable
 
 llm:
   provider: "deepseek"

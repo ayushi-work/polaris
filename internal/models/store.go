@@ -8,9 +8,12 @@ import (
 	"path/filepath"
 	"time"
 
+	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+
+	"github.com/ayushi/polaris/internal/config"
 )
 
 func NewID(prefix string) string {
@@ -55,6 +58,15 @@ type Store interface {
 
 type SQLiteStore struct {
 	db *gorm.DB
+}
+
+func NewStore(cfg config.StorageConfig) (Store, error) {
+	switch cfg.Type {
+	case "postgres":
+		return NewPostgresStore(cfg.DSN)
+	default:
+		return NewSQLiteStore(cfg.Path)
+	}
 }
 
 func NewSQLiteStore(path string) (*SQLiteStore, error) {
@@ -205,4 +217,20 @@ func (s *SQLiteStore) DeleteChaosScenario(ctx context.Context, id string) error 
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
+}
+
+// NewPostgresStore opens a GORM-backed Store on PostgreSQL.
+func NewPostgresStore(dsn string) (*SQLiteStore, error) {
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Warn),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("open postgres: %w", err)
+	}
+
+	if err := db.AutoMigrate(&Incident{}, &Remediation{}, &RCAResult{}, &ChaosScenario{}); err != nil {
+		return nil, fmt.Errorf("auto migrate: %w", err)
+	}
+
+	return &SQLiteStore{db: db}, nil
 }

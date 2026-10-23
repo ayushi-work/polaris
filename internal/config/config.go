@@ -28,8 +28,9 @@ type ServerConfig struct {
 }
 
 type StorageConfig struct {
-	Type string `mapstructure:"type"`
+	Type string `mapstructure:"type"` // sqlite | postgres
 	Path string `mapstructure:"path"`
+	DSN  string `mapstructure:"dsn"` // postgres connection string
 }
 
 type KubeConfig struct {
@@ -178,6 +179,8 @@ func Load(path string) (*Config, error) {
 	_ = viper.BindEnv("llm.model", "POLARIS_LLM_MODEL")
 	_ = viper.BindEnv("alerting.webhook_url", "POLARIS_ALERTING_WEBHOOK_URL")
 	_ = viper.BindEnv("alerting.enabled", "POLARIS_ALERTING_ENABLED")
+	_ = viper.BindEnv("storage.type", "POLARIS_STORAGE_TYPE")
+	_ = viper.BindEnv("storage.dsn", "POLARIS_STORAGE_DSN")
 	_ = viper.BindEnv("metrics.prometheus.url", "POLARIS_METRICS_PROMETHEUS_URL")
 	_ = viper.BindEnv("metrics.prometheus.enabled", "POLARIS_METRICS_PROMETHEUS_ENABLED")
 

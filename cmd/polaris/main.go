@@ -13,6 +13,7 @@ import (
 
 	"github.com/ayushi/polaris/internal/alerting"
 	"github.com/ayushi/polaris/internal/api"
+	"github.com/ayushi/polaris/internal/chaos"
 	"github.com/ayushi/polaris/internal/config"
 	"github.com/ayushi/polaris/internal/detector"
 	"github.com/ayushi/polaris/internal/detector/rules"
@@ -100,9 +101,10 @@ func runServe(cmd *cobra.Command, args []string) error {
 	}
 	rcaEngine := rca.NewEngine(kubeClient, promClient, cfg.LLM, store)
 	remEngine := remediation.NewEngine(kubeClient, cfg.Remediation.MaxRetries, cfg.Remediation.AutoApprove)
+	chaosEngine := chaos.NewEngine(kubeClient, cfg.Chaos)
 
 	// Start orchestrator
-	orch := orchestrator.New(store, bus, rcaEngine, remEngine, kubeClient)
+	orch := orchestrator.New(store, bus, rcaEngine, remEngine, chaosEngine, kubeClient)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

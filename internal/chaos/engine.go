@@ -2,12 +2,14 @@ package chaos
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/ayushi/polaris/internal/config"
 	"github.com/ayushi/polaris/internal/kube"
 	"github.com/ayushi/polaris/internal/models"
 	"github.com/ayushi/polaris/pkg/iforge"
@@ -15,10 +17,11 @@ import (
 
 type Engine struct {
 	kubeClient kube.Client
+	cfg        config.ChaosConfig
 }
 
-func NewEngine(kubeClient kube.Client) *Engine {
-	return &Engine{kubeClient: kubeClient}
+func NewEngine(kubeClient kube.Client, cfg config.ChaosConfig) *Engine {
+	return &Engine{kubeClient: kubeClient, cfg: cfg}
 }
 
 type ExecutionResult struct {
@@ -38,16 +41,12 @@ func (e *Engine) Execute(ctx context.Context, scenario *models.ChaosScenario) *E
 	switch scenario.Action {
 	case iforge.ChaosActionDeletePod:
 		return e.deletePod(ctx, scenario)
-	case iforge.ChaosActionStressCPU:
-		return e.noopResult(scenario, "CPU stress not yet implemented (requires stress-ng DaemonSets)")
-	case iforge.ChaosActionStressMemory:
-		return e.noopResult(scenario, "Memory stress not yet implemented (requires stress-ng DaemonSets)")
-	case iforge.ChaosActionNetworkDelay:
-		return e.noopResult(scenario, "Network delay not yet implemented (requires network policies)")
-	case iforge.ChaosActionNetworkLoss:
-		return e.noopResult(scenario, "Network loss not yet implemented (requires network policies)")
+	case iforge.ChaosActionStressCPU, iforge.ChaosActionStressMemory:
+		return e.runStress(ctx, scenario)
+	case iforge.ChaosActionNetworkDelay, iforge.ChaosActionNetworkLoss:
+		return e.runNetem(ctx, scenario)
 	case iforge.ChaosActionConfigFault:
-		return e.noopResult(scenario, "Config fault not yet implemented")
+		return e.runConfigFault(ctx, scenario)
 	default:
 		return &ExecutionResult{
 			Success: false,
@@ -90,11 +89,18 @@ func (e *Engine) deletePod(ctx context.Context, scenario *models.ChaosScenario) 
 	}
 }
 
-func (e *Engine) noopResult(scenario *models.ChaosScenario, msg string) *ExecutionResult {
-	return &ExecutionResult{
-		Success: false,
-		Output:  msg,
+// gateOpen decides whether dangerous (hostNetwork/privileged) chaos may run.
+// It requires chaos.require_dangerous to be on AND the scenario to explicitly
+// opt in via parameters.allow_dangerous.
+func (e *Engine) gateOpen(sc *models.ChaosScenario) bool {
+	if !e.cfg.RequireDangerous {
+		return true
 	}
+	var p struct {
+		AllowDangerous bool `json:"allow_dangerous"`
+	}
+	_ = json.Unmarshal([]byte(sc.Parameters), &p)
+	return p.AllowDangerous
 }
 
 var (

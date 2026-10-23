@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/ayushi/polaris/internal/chaos"
 	"github.com/ayushi/polaris/internal/eventbus"
 	"github.com/ayushi/polaris/internal/kube"
 	"github.com/ayushi/polaris/internal/models"
@@ -14,20 +15,22 @@ import (
 )
 
 type Orchestrator struct {
-	store      models.Store
-	bus        eventbus.EventBus
-	rcaEngine  *rca.Engine
-	remEngine  *remediation.Engine
-	kubeClient kube.Client
+	store       models.Store
+	bus         eventbus.EventBus
+	rcaEngine   *rca.Engine
+	remEngine   *remediation.Engine
+	chaosEngine *chaos.Engine
+	kubeClient  kube.Client
 }
 
-func New(store models.Store, bus eventbus.EventBus, rcaEngine *rca.Engine, remEngine *remediation.Engine, kubeClient kube.Client) *Orchestrator {
+func New(store models.Store, bus eventbus.EventBus, rcaEngine *rca.Engine, remEngine *remediation.Engine, chaosEngine *chaos.Engine, kubeClient kube.Client) *Orchestrator {
 	return &Orchestrator{
-		store:      store,
-		bus:        bus,
-		rcaEngine:  rcaEngine,
-		remEngine:  remEngine,
-		kubeClient: kubeClient,
+		store:       store,
+		bus:         bus,
+		rcaEngine:   rcaEngine,
+		remEngine:   remEngine,
+		chaosEngine: chaosEngine,
+		kubeClient:  kubeClient,
 	}
 }
 
@@ -152,6 +155,23 @@ func (o *Orchestrator) handleChaosStarted(ctx context.Context, e eventbus.Event)
 
 	log.Printf("Orchestrator: chaos scenario started %s: %s", sc.ID, sc.Name)
 
+	message := "Chaos scenario injected: " + sc.Description
+	details := ""
+
+	// Actually run the chaos action through the engine.
+	if o.chaosEngine != nil {
+		result := o.chaosEngine.Execute(ctx, sc)
+		details = result.Output
+		if !result.Success && result.Error != nil {
+			details = result.Output + " (error: " + result.Error.Error() + ")"
+		}
+		log.Printf("Orchestrator: chaos engine result for %s: %s", sc.ID, details)
+		o.bus.Publish(eventbus.Event{
+			Type:    eventbus.EventChaosCompleted,
+			Payload: sc,
+		})
+	}
+
 	inc := &models.Incident{
 		Cluster:      "local",
 		Namespace:    "default",
@@ -160,7 +180,8 @@ func (o *Orchestrator) handleChaosStarted(ctx context.Context, e eventbus.Event)
 		IncidentType: "ChaosInjection",
 		Severity:     iforge.SeverityWarning,
 		Status:       iforge.IncidentStatusDetected,
-		Message:      "Chaos scenario injected: " + sc.Description,
+		Message:      message,
+		Details:      details,
 		DetectedAt:   time.Now().UTC(),
 	}
 

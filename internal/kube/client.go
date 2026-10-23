@@ -20,6 +20,7 @@ import (
 type Client interface {
 	GetPod(ctx context.Context, namespace, name string) (*v1.Pod, error)
 	ListPods(ctx context.Context, namespace string, opts metav1.ListOptions) (*v1.PodList, error)
+	CreatePod(ctx context.Context, pod *v1.Pod) (*v1.Pod, error)
 	DeletePod(ctx context.Context, namespace, name string, opts metav1.DeleteOptions) error
 	GetDeployment(ctx context.Context, namespace, name string) (*appsv1.Deployment, error)
 	ScaleDeployment(ctx context.Context, namespace, name string, replicas int32) (*appsv1.Deployment, error)
@@ -69,6 +70,10 @@ func (c *realClient) GetPod(ctx context.Context, namespace, name string) (*v1.Po
 
 func (c *realClient) ListPods(ctx context.Context, namespace string, opts metav1.ListOptions) (*v1.PodList, error) {
 	return c.clientset.CoreV1().Pods(namespace).List(ctx, opts)
+}
+
+func (c *realClient) CreatePod(ctx context.Context, pod *v1.Pod) (*v1.Pod, error) {
+	return c.clientset.CoreV1().Pods(pod.Namespace).Create(ctx, pod, metav1.CreateOptions{})
 }
 
 func (c *realClient) DeletePod(ctx context.Context, namespace, name string, opts metav1.DeleteOptions) error {

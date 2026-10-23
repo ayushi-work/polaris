@@ -39,8 +39,8 @@ type bus struct {
 }
 
 type subEntry struct {
-	ch     chan Event
-	types  map[EventType]bool
+	ch    chan Event
+	types map[EventType]bool
 }
 
 func New() EventBus {

@@ -10,9 +10,10 @@ import (
 	"github.com/ayushi/polaris/internal/api/middleware"
 	"github.com/ayushi/polaris/internal/eventbus"
 	"github.com/ayushi/polaris/internal/models"
+	"github.com/ayushi/polaris/internal/remediation"
 )
 
-func NewRouter(store models.Store, bus eventbus.EventBus) *fiber.App {
+func NewRouter(store models.Store, bus eventbus.EventBus, remEngine *remediation.Engine) *fiber.App {
 	app := fiber.New(fiber.Config{
 		AppName:   "Polaris",
 		BodyLimit: 4 * 1024 * 1024,
@@ -25,7 +26,7 @@ func NewRouter(store models.Store, bus eventbus.EventBus) *fiber.App {
 	}))
 	app.Use(middleware.Logger())
 
-	h := handlers.New(store, bus)
+	h := handlers.New(store, bus, remEngine)
 
 	wsHub := handlers.NewWebSocketHub(bus)
 	go wsHub.Run()

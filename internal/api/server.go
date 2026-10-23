@@ -14,22 +14,25 @@ import (
 	"github.com/ayushi/polaris/internal/config"
 	"github.com/ayushi/polaris/internal/eventbus"
 	"github.com/ayushi/polaris/internal/models"
+	"github.com/ayushi/polaris/internal/remediation"
 )
 
 type Server struct {
-	app    *fiber.App
-	cfg    config.ServerConfig
-	store  models.Store
-	bus    eventbus.EventBus
+	app       *fiber.App
+	cfg       config.ServerConfig
+	store     models.Store
+	bus       eventbus.EventBus
+	remEngine *remediation.Engine
 }
 
-func NewServer(cfg config.ServerConfig, store models.Store, bus eventbus.EventBus) *Server {
-	app := NewRouter(store, bus)
+func NewServer(cfg config.ServerConfig, store models.Store, bus eventbus.EventBus, remEngine *remediation.Engine) *Server {
+	app := NewRouter(store, bus, remEngine)
 	return &Server{
-		app:   app,
-		cfg:   cfg,
-		store: store,
-		bus:   bus,
+		app:       app,
+		cfg:       cfg,
+		store:     store,
+		bus:       bus,
+		remEngine: remEngine,
 	}
 }
 

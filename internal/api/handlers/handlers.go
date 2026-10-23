@@ -15,16 +15,18 @@ import (
 
 	"github.com/ayushi/polaris/internal/eventbus"
 	"github.com/ayushi/polaris/internal/models"
+	"github.com/ayushi/polaris/internal/remediation"
 	"github.com/ayushi/polaris/pkg/iforge"
 )
 
 type Handlers struct {
-	store models.Store
-	bus   eventbus.EventBus
+	store     models.Store
+	bus       eventbus.EventBus
+	remEngine *remediation.Engine
 }
 
-func New(store models.Store, bus eventbus.EventBus) *Handlers {
-	return &Handlers{store: store, bus: bus}
+func New(store models.Store, bus eventbus.EventBus, remEngine *remediation.Engine) *Handlers {
+	return &Handlers{store: store, bus: bus, remEngine: remEngine}
 }
 
 // --- Health ---
@@ -297,6 +299,14 @@ func (h *Handlers) GetRemediation(c *fiber.Ctx) error {
 }
 
 func (h *Handlers) ApproveRemediation(c *fiber.Ctx) error {
+	return h.runRemediation(c)
+}
+
+func (h *Handlers) ExecuteRemediation(c *fiber.Ctx) error {
+	return h.runRemediation(c)
+}
+
+func (h *Handlers) runRemediation(c *fiber.Ctx) error {
 	id := c.Params("id")
 	rem, err := h.store.GetRemediation(c.Context(), id)
 	if err != nil {
@@ -306,24 +316,36 @@ func (h *Handlers) ApproveRemediation(c *fiber.Ctx) error {
 		return c.Status(500).JSON(iforge.ErrInternal)
 	}
 
+	if rem.Status != iforge.RemediationPending && rem.Status != iforge.RemediationRunning {
+		return c.Status(409).JSON(fiber.Map{
+			"error":  "remediation is not pending or running",
+			"status": rem.Status,
+		})
+	}
+
+	result := h.remEngine.Execute(c.Context(), rem)
+	rem.Output = result.Output
+	if result.Error != nil {
+		rem.ErrorMessage = result.Error.Error()
+	}
 	now := time.Now().UTC()
-	rem.Status = iforge.RemediationRunning
-	rem.ExecutedAt = &now
+	rem.CompletedAt = &now
+	if result.Success {
+		rem.Status = iforge.RemediationSuccess
+	} else {
+		rem.Status = iforge.RemediationFailed
+	}
 
 	if err := h.store.UpdateRemediation(c.Context(), rem); err != nil {
 		return c.Status(500).JSON(iforge.ErrInternal)
 	}
 
 	h.bus.Publish(eventbus.Event{
-		Type:    eventbus.EventRemediationStarted,
+		Type:    eventbus.EventRemediationCompleted,
 		Payload: rem,
 	})
 
 	return c.JSON(rem)
-}
-
-func (h *Handlers) ExecuteRemediation(c *fiber.Ctx) error {
-	return h.ApproveRemediation(c)
 }
 
 func (h *Handlers) CancelRemediation(c *fiber.Ctx) error {

@@ -128,7 +128,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 		cancel()
 	}()
 
-	server := api.NewServer(cfg.Server, store, bus)
+	server := api.NewServer(cfg.Server, store, bus, remEngine)
 	return server.Start()
 }
 

@@ -33,3 +33,9 @@ coverage.out
 # Env
 .env
 .env.local
+
+# Demo artifacts
+*.png.playwright/
+incidentforge
+.playwright-mcp/
+docs/presentation/*.png

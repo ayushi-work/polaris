@@ -11,6 +11,9 @@ export function HealingCenter() {
   });
 
   const successCount = remediations?.filter((r) => r.status === "success").length || 0;
+  const failedCount = remediations?.filter((r) => r.status === "failed").length || 0;
+  const autoCount = remediations?.filter((r) => r.is_automated).length || 0;
+  const completed = successCount + failedCount;
   const total = remediations?.length || 0;
 
   return (
@@ -49,8 +52,8 @@ export function HealingCenter() {
 
       <div className="grid grid-cols-3 gap-5">
         <MetricCard label="Total Actions" value={String(total)} />
-        <MetricCard label="Success Rate" value={total ? `${Math.round((successCount / total) * 100)}%` : "N/A"} />
-        <MetricCard label="Auto-Healing" value="87%" />
+        <MetricCard label="Success Rate" value={completed ? `${Math.round((successCount / completed) * 100)}%` : "N/A"} />
+        <MetricCard label="Auto-Remediated" value={total ? `${Math.round((autoCount / total) * 100)}%` : "N/A"} />
       </div>
     </div>
   );

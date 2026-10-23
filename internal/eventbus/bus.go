@@ -9,6 +9,7 @@ import (
 type EventType string
 
 const (
+	EventIncidentDetected     EventType = "incident.detected"
 	EventIncidentCreated      EventType = "incident.created"
 	EventIncidentUpdated      EventType = "incident.updated"
 	EventRCATriggered         EventType = "rca.triggered"

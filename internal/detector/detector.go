@@ -3,6 +3,7 @@ package detector
 import (
 	"context"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/ayushi/polaris/internal/eventbus"
@@ -22,6 +23,10 @@ type Detector struct {
 	rules     []Rule
 	interval  time.Duration
 	namespace string
+
+	lastFired map[string]time.Time
+	mu        sync.Mutex
+	cooldown  time.Duration
 }
 
 func New(client kube.Client, bus eventbus.EventBus, interval time.Duration, namespace string) *Detector {
@@ -30,7 +35,23 @@ func New(client kube.Client, bus eventbus.EventBus, interval time.Duration, name
 		bus:       bus,
 		interval:  interval,
 		namespace: namespace,
+		lastFired: make(map[string]time.Time),
+		cooldown:  5 * time.Minute,
 	}
+}
+
+// key identifies an incident for dedup purposes.
+func (d *Detector) key(inc *models.Incident) string {
+	return inc.Namespace + "/" + inc.ResourceName + "/" + inc.IncidentType
+}
+
+func (d *Detector) shouldSuppress(inc *models.Incident) bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if t, ok := d.lastFired[d.key(inc)]; ok && time.Since(t) < d.cooldown {
+		return true
+	}
+	return false
 }
 
 func (d *Detector) RegisterRule(rule Rule) {
@@ -64,9 +85,17 @@ func (d *Detector) runOnce(ctx context.Context) {
 		}
 
 		for _, inc := range incidents {
+			// Dedup on the detector side: same pod + type inside cooldown
+			// must not re-fire every scan.
+			if d.shouldSuppress(inc) {
+				continue
+			}
 			log.Printf("Detector: %s fired: %s in %s/%s", rule.Name(), inc.IncidentType, inc.Namespace, inc.ResourceName)
+			d.lastFired[d.key(inc)] = time.Now()
 			d.bus.Publish(eventbus.Event{
-				Type:    eventbus.EventIncidentCreated,
+				// incident.detected: not yet persisted; the orchestrator
+				// owns persistence for detector-sourced incidents.
+				Type:    eventbus.EventIncidentDetected,
 				Payload: inc,
 			})
 		}

@@ -15,27 +15,30 @@ import (
 )
 
 type Orchestrator struct {
-	store       models.Store
-	bus         eventbus.EventBus
-	rcaEngine   *rca.Engine
-	remEngine   *remediation.Engine
-	chaosEngine *chaos.Engine
-	kubeClient  kube.Client
+	store        models.Store
+	bus          eventbus.EventBus
+	rcaEngine    *rca.Engine
+	remEngine    *remediation.Engine
+	chaosEngine  *chaos.Engine
+	kubeClient   kube.Client
+	dedupeWindow time.Duration
 }
 
 func New(store models.Store, bus eventbus.EventBus, rcaEngine *rca.Engine, remEngine *remediation.Engine, chaosEngine *chaos.Engine, kubeClient kube.Client) *Orchestrator {
 	return &Orchestrator{
-		store:       store,
-		bus:         bus,
-		rcaEngine:   rcaEngine,
-		remEngine:   remEngine,
-		chaosEngine: chaosEngine,
-		kubeClient:  kubeClient,
+		store:        store,
+		bus:          bus,
+		rcaEngine:    rcaEngine,
+		remEngine:    remEngine,
+		chaosEngine:  chaosEngine,
+		kubeClient:   kubeClient,
+		dedupeWindow: 5 * time.Minute,
 	}
 }
 
 func (o *Orchestrator) Run(ctx context.Context) error {
 	events, unsub := o.bus.Subscribe(
+		eventbus.EventIncidentDetected,
 		eventbus.EventIncidentCreated,
 		eventbus.EventRCATriggered,
 		eventbus.EventChaosStarted,
@@ -48,6 +51,9 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 		select {
 		case e := <-events:
 			switch e.Type {
+			case eventbus.EventIncidentDetected:
+				o.handleIncidentDetected(ctx, e)
+
 			case eventbus.EventIncidentCreated:
 				o.handleIncidentCreated(ctx, e)
 
@@ -62,6 +68,44 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 			return ctx.Err()
 		}
 	}
+}
+
+// handleIncidentDetected persists detector-sourced incidents (deduped) and
+// then runs the same response chain as API-created incidents.
+func (o *Orchestrator) handleIncidentDetected(ctx context.Context, e eventbus.Event) {
+	inc, ok := e.Payload.(*models.Incident)
+	if !ok {
+		return
+	}
+
+	// Cross-check the database: another rule may have flagged this
+	// workload moments ago (double detection within cooldown).
+	recent, err := o.store.ListIncidents(ctx, models.IncidentFilter{
+		Service: inc.ResourceName,
+		Limit:   10,
+	})
+	if err == nil {
+		for _, r := range recent {
+			if r.IncidentType == inc.IncidentType &&
+				r.Namespace == inc.Namespace &&
+				r.Status != iforge.IncidentStatusResolved &&
+				time.Since(r.DetectedAt) < o.dedupeWindow {
+				log.Printf("Orchestrator: suppressing duplicate %s on %s (dedupe window)", inc.IncidentType, inc.ResourceName)
+				return
+			}
+		}
+	}
+
+	if err := o.store.CreateIncident(ctx, inc); err != nil {
+		log.Printf("Orchestrator: failed to persist detected incident: %v", err)
+		return
+	}
+	log.Printf("Orchestrator: persisted detected incident %s (%s)", inc.ID, inc.IncidentType)
+
+	o.bus.Publish(eventbus.Event{
+		Type:    eventbus.EventIncidentCreated,
+		Payload: inc,
+	})
 }
 
 func (o *Orchestrator) handleIncidentCreated(ctx context.Context, e eventbus.Event) {

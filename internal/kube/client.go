@@ -10,6 +10,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
@@ -21,6 +22,7 @@ type Client interface {
 	GetPod(ctx context.Context, namespace, name string) (*v1.Pod, error)
 	ListPods(ctx context.Context, namespace string, opts metav1.ListOptions) (*v1.PodList, error)
 	CreatePod(ctx context.Context, pod *v1.Pod) (*v1.Pod, error)
+	UpdatePodStatus(ctx context.Context, pod *v1.Pod) (*v1.Pod, error)
 	DeletePod(ctx context.Context, namespace, name string, opts metav1.DeleteOptions) error
 	GetDeployment(ctx context.Context, namespace, name string) (*appsv1.Deployment, error)
 	ScaleDeployment(ctx context.Context, namespace, name string, replicas int32) (*appsv1.Deployment, error)
@@ -60,8 +62,10 @@ func NewKubeconfigClient(kubeconfigPath string) (Client, error) {
 	return &realClient{clientset: clientset}, nil
 }
 
-func NewFakeClient() Client {
-	return &realClient{clientset: fake.NewSimpleClientset()}
+// NewFakeClient returns a client backed by a fake clientset. Optionally seed
+// it with starter objects (pods, deployments, ...) for tests and demos.
+func NewFakeClient(objs ...runtime.Object) Client {
+	return &realClient{clientset: fake.NewSimpleClientset(objs...)}
 }
 
 func (c *realClient) GetPod(ctx context.Context, namespace, name string) (*v1.Pod, error) {
@@ -74,6 +78,10 @@ func (c *realClient) ListPods(ctx context.Context, namespace string, opts metav1
 
 func (c *realClient) CreatePod(ctx context.Context, pod *v1.Pod) (*v1.Pod, error) {
 	return c.clientset.CoreV1().Pods(pod.Namespace).Create(ctx, pod, metav1.CreateOptions{})
+}
+
+func (c *realClient) UpdatePodStatus(ctx context.Context, pod *v1.Pod) (*v1.Pod, error) {
+	return c.clientset.CoreV1().Pods(pod.Namespace).UpdateStatus(ctx, pod, metav1.UpdateOptions{})
 }
 
 func (c *realClient) DeletePod(ctx context.Context, namespace, name string, opts metav1.DeleteOptions) error {

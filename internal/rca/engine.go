@@ -258,6 +258,10 @@ func (e *Engine) multiAgentAnalyze(ctx context.Context, bundle *contextBundle, i
 
 	ch := make(chan agentResult, 4)
 
+	// The three specialist agents always run; the metrics agent joins only
+	// when Prometheus context is available.
+	spawned := 3
+
 	// Logs agent
 	go func() {
 		resp, err := llm.AnalyzeWithSystem(ctx, logsAgentPrompt, "Container logs for "+deployCtx+":\n\n"+bundle.logs)
@@ -304,6 +308,7 @@ func (e *Engine) multiAgentAnalyze(ctx context.Context, bundle *contextBundle, i
 
 	// Metrics agent — only when Prometheus context is available
 	if bundle.metrics != "" {
+		spawned++
 		go func() {
 			resp, err := llm.AnalyzeWithSystem(ctx, metricsAgentPrompt,
 				"Prometheus resource metrics for "+deployCtx+":\n\n"+bundle.metrics)
@@ -322,7 +327,7 @@ func (e *Engine) multiAgentAnalyze(ctx context.Context, bundle *contextBundle, i
 	// Collect results
 	results := make(map[string]*agentFinding)
 	var firstErr error
-	for i := 0; i < cap(ch); i++ {
+	for i := 0; i < spawned; i++ {
 		r := <-ch
 		if r.err != nil && firstErr == nil {
 			firstErr = r.err

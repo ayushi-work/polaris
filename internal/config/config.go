@@ -177,6 +177,7 @@ func Load(path string) (*Config, error) {
 	_ = viper.BindEnv("kubernetes.mode", "POLARIS_KUBERNETES_MODE")
 	_ = viper.BindEnv("llm.api_key", "POLARIS_LLM_API_KEY")
 	_ = viper.BindEnv("llm.model", "POLARIS_LLM_MODEL")
+	_ = viper.BindEnv("llm.base_url", "POLARIS_LLM_BASE_URL")
 	_ = viper.BindEnv("alerting.webhook_url", "POLARIS_ALERTING_WEBHOOK_URL")
 	_ = viper.BindEnv("alerting.enabled", "POLARIS_ALERTING_ENABLED")
 	_ = viper.BindEnv("storage.type", "POLARIS_STORAGE_TYPE")

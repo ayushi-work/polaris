@@ -18,21 +18,23 @@ import (
 )
 
 type Server struct {
-	app       *fiber.App
-	cfg       config.ServerConfig
-	store     models.Store
-	bus       eventbus.EventBus
-	remEngine *remediation.Engine
+	app        *fiber.App
+	cfg        config.ServerConfig
+	store      models.Store
+	bus        eventbus.EventBus
+	remEngine  *remediation.Engine
+	safetyGate *remediation.SafetyGate
 }
 
-func NewServer(cfg config.ServerConfig, store models.Store, bus eventbus.EventBus, remEngine *remediation.Engine) *Server {
-	app := NewRouter(store, bus, remEngine)
+func NewServer(cfg config.ServerConfig, store models.Store, bus eventbus.EventBus, remEngine *remediation.Engine, safetyGate *remediation.SafetyGate) *Server {
+	app := NewRouter(store, bus, remEngine, safetyGate)
 	return &Server{
-		app:       app,
-		cfg:       cfg,
-		store:     store,
-		bus:       bus,
-		remEngine: remEngine,
+		app:        app,
+		cfg:        cfg,
+		store:      store,
+		bus:        bus,
+		remEngine:  remEngine,
+		safetyGate: safetyGate,
 	}
 }
 

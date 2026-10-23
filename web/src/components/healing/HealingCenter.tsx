@@ -1,13 +1,29 @@
-import { useQuery } from "@tanstack/react-query";
-import { fetchRemediations } from "@/api/remediations";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { fetchRemediations, approveRemediation, cancelRemediation } from "@/api/remediations";
 import { StatusBadge } from "@/components/incidents/SeverityBadge";
 import { formatDate } from "@/lib/utils";
 
 export function HealingCenter() {
-  const { data: remediations } = useQuery({
+  const queryClient = useQueryClient();
+  const { data: remediations, refetch } = useQuery({
     queryKey: ["remediations"],
     queryFn: () => fetchRemediations(),
     refetchInterval: 10000,
+  });
+
+  const approve = useMutation({
+    mutationFn: approveRemediation,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["remediations"] });
+      refetch();
+    },
+  });
+  const cancel = useMutation({
+    mutationFn: cancelRemediation,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["remediations"] });
+      refetch();
+    },
   });
 
   const successCount = remediations?.filter((r) => r.status === "success").length || 0;
@@ -32,6 +48,7 @@ export function HealingCenter() {
                 <th className="pb-3 text-xs font-medium uppercase tracking-wider text-stone-400">Status</th>
                 <th className="pb-3 text-xs font-medium uppercase tracking-wider text-stone-400">Auto</th>
                 <th className="pb-3 text-xs font-medium uppercase tracking-wider text-stone-400">Created</th>
+                <th className="pb-3 text-xs font-medium uppercase tracking-wider text-stone-400">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -43,6 +60,29 @@ export function HealingCenter() {
                   <td className="py-2.5"><StatusBadge status={rem.status} /></td>
                   <td className="py-2.5 text-stone-500">{rem.is_automated ? "Yes" : "No"}</td>
                   <td className="py-2.5 text-xs text-stone-400">{formatDate(rem.created_at)}</td>
+                  <td className="py-2.5 space-x-2">
+                    {rem.status === "pending" && (
+                      <>
+                        <button
+                          onClick={() => approve.mutate(rem.id)}
+                          disabled={approve.isPending || cancel.isPending}
+                          className="rounded-md bg-emerald-700 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-800 disabled:opacity-50"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => cancel.mutate(rem.id)}
+                          disabled={approve.isPending || cancel.isPending}
+                          className="rounded-md border border-stone-300 px-2.5 py-1 text-xs font-medium text-stone-600 hover:bg-stone-50 disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    )}
+                    {rem.output && (
+                      <span className="text-xs text-stone-400" title={rem.output}>output</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

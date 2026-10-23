@@ -20,13 +20,14 @@ import (
 )
 
 type Handlers struct {
-	store     models.Store
-	bus       eventbus.EventBus
-	remEngine *remediation.Engine
+	store      models.Store
+	bus        eventbus.EventBus
+	remEngine  *remediation.Engine
+	safetyGate *remediation.SafetyGate
 }
 
-func New(store models.Store, bus eventbus.EventBus, remEngine *remediation.Engine) *Handlers {
-	return &Handlers{store: store, bus: bus, remEngine: remEngine}
+func New(store models.Store, bus eventbus.EventBus, remEngine *remediation.Engine, safetyGate *remediation.SafetyGate) *Handlers {
+	return &Handlers{store: store, bus: bus, remEngine: remEngine, safetyGate: safetyGate}
 }
 
 // --- Health ---
@@ -323,6 +324,13 @@ func (h *Handlers) runRemediation(c *fiber.Ctx) error {
 		})
 	}
 
+	if err := h.safetyGate.Check(c.Context(), rem); err != nil {
+		return c.Status(429).JSON(fiber.Map{
+			"error":  "blocked by safety gate",
+			"reason": err.Error(),
+		})
+	}
+
 	result := h.remEngine.Execute(c.Context(), rem)
 	rem.Output = result.Output
 	if result.Error != nil {
@@ -499,10 +507,10 @@ func (h *Handlers) ScheduleChaosScenario(c *fiber.Ctx) error {
 // --- WebSocket Hub ---
 
 type WebSocketHub struct {
-	bus       eventbus.EventBus
-	clients   map[*websocket.Conn]bool
-	mu        sync.RWMutex
-	register  chan *websocket.Conn
+	bus        eventbus.EventBus
+	clients    map[*websocket.Conn]bool
+	mu         sync.RWMutex
+	register   chan *websocket.Conn
 	unregister chan *websocket.Conn
 }
 

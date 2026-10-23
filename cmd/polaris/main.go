@@ -101,6 +101,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 	}
 	rcaEngine := rca.NewEngine(kubeClient, promClient, cfg.LLM, store)
 	remEngine := remediation.NewEngine(kubeClient, cfg.Remediation.MaxRetries, cfg.Remediation.AutoApprove)
+	safetyGate := remediation.NewSafetyGate(kubeClient, store, cfg.Remediation.AllowedActions, cfg.Remediation.MaxActionsPerHour)
 	chaosEngine := chaos.NewEngine(kubeClient, cfg.Chaos)
 
 	// Start orchestrator
@@ -147,7 +148,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 		cancel()
 	}()
 
-	server := api.NewServer(cfg.Server, store, bus, remEngine)
+	server := api.NewServer(cfg.Server, store, bus, remEngine, safetyGate)
 	return server.Start()
 }
 

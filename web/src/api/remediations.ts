@@ -15,3 +15,8 @@ export async function executeRemediation(id: string): Promise<Remediation> {
   const { data } = await api.post(`/remediations/${id}/execute`);
   return data;
 }
+
+export async function cancelRemediation(id: string): Promise<Remediation> {
+  const { data } = await api.post(`/remediations/${id}/cancel`);
+  return data;
+}

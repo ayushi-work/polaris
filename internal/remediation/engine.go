@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -58,6 +59,14 @@ func (e *Engine) Execute(ctx context.Context, rem *models.Remediation) *ActionRe
 func (e *Engine) executeRestart(ctx context.Context, rem *models.Remediation) *ActionResult {
 	err := e.kubeClient.DeletePod(ctx, rem.Namespace, rem.TargetName, metav1.DeleteOptions{})
 	if err != nil {
+		// Idempotent healing: a pod that vanished between detection and
+		// execution (recreated, rescheduled) counts as already restarted.
+		if strings.Contains(err.Error(), "not found") {
+			return &ActionResult{
+				Success: true,
+				Output:  fmt.Sprintf("Pod %s/%s already gone (recreated after detection) — restart satisfied", rem.Namespace, rem.TargetName),
+			}
+		}
 		return &ActionResult{
 			Success: false,
 			Output:  fmt.Sprintf("Failed to delete pod: %v", err),

@@ -70,9 +70,10 @@ type ChaosConfig struct {
 }
 
 type RemediationConfig struct {
-	AutoApprove    bool     `mapstructure:"auto_approve"`
-	MaxRetries     int      `mapstructure:"max_retries"`
-	AllowedActions []string `mapstructure:"allowed_actions"`
+	AutoApprove       bool     `mapstructure:"auto_approve"`
+	MaxRetries        int      `mapstructure:"max_retries"`
+	AllowedActions    []string `mapstructure:"allowed_actions"`
+	MaxActionsPerHour int      `mapstructure:"max_actions_per_hour"`
 }
 
 type MetricsConfig struct {
@@ -105,9 +106,9 @@ func DefaultConfig() *Config {
 			Path: "./data/polaris.db",
 		},
 		Kubernetes: KubeConfig{
-			Mode:          "auto",
+			Mode:           "auto",
 			KubeconfigPath: "",
-			FakeNamespace: "default",
+			FakeNamespace:  "default",
 		},
 		Detector: DetectorConfig{
 			Enabled:        true,
@@ -135,9 +136,10 @@ func DefaultConfig() *Config {
 			RequireDangerous:  true,
 		},
 		Remediation: RemediationConfig{
-			AutoApprove:    false,
-			MaxRetries:     3,
-			AllowedActions: []string{"restart", "scale_up", "rollback"},
+			AutoApprove:       false,
+			MaxRetries:        3,
+			AllowedActions:    []string{"restart", "scale_up", "rollback"},
+			MaxActionsPerHour: 20,
 		},
 		Metrics: MetricsConfig{
 			Prometheus: PrometheusConfig{

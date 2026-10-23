@@ -19,6 +19,7 @@ import (
 	"github.com/ayushi/polaris/internal/kube"
 	"github.com/ayushi/polaris/internal/models"
 	"github.com/ayushi/polaris/internal/orchestrator"
+	"github.com/ayushi/polaris/internal/prometheus"
 	"github.com/ayushi/polaris/internal/rca"
 	"github.com/ayushi/polaris/internal/remediation"
 )
@@ -91,7 +92,12 @@ func runServe(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create engines
-	rcaEngine := rca.NewEngine(kubeClient, cfg.LLM, store)
+	var promClient *prometheus.Client
+	if cfg.Metrics.Prometheus.Enabled {
+		promClient = prometheus.NewClient(cfg.Metrics.Prometheus.URL, cfg.Metrics.Prometheus.Timeout)
+		log.Printf("Prometheus: enabled, querying %s", cfg.Metrics.Prometheus.URL)
+	}
+	rcaEngine := rca.NewEngine(kubeClient, promClient, cfg.LLM, store)
 	remEngine := remediation.NewEngine(kubeClient, cfg.Remediation.MaxRetries, cfg.Remediation.AutoApprove)
 
 	// Start orchestrator

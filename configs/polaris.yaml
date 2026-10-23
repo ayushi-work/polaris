@@ -39,6 +39,18 @@ chaos:
   allowed_namespaces: ["default"]
   require_dangerous: true
 
+metrics:
+  prometheus:
+    enabled: false
+    url: "http://localhost:9090"
+    timeout: 10s
+
+alerting:
+  enabled: false
+  webhook_url: ""
+  channel: "polaris-alerts"
+  timeout: 10s
+
 logging:
   level: "info"
   format: "console"

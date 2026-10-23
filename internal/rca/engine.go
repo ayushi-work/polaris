@@ -13,17 +13,20 @@ import (
 	"github.com/ayushi/polaris/internal/config"
 	"github.com/ayushi/polaris/internal/kube"
 	"github.com/ayushi/polaris/internal/models"
+	"github.com/ayushi/polaris/internal/prometheus"
 )
 
 type Engine struct {
 	kubeClient kube.Client
+	prom       *prometheus.Client
 	llmCfg     config.LLMConfig
 	store      models.Store
 }
 
-func NewEngine(kubeClient kube.Client, llmCfg config.LLMConfig, store models.Store) *Engine {
+func NewEngine(kubeClient kube.Client, prom *prometheus.Client, llmCfg config.LLMConfig, store models.Store) *Engine {
 	return &Engine{
 		kubeClient: kubeClient,
+		prom:       prom,
 		llmCfg:     llmCfg,
 		store:      store,
 	}
@@ -36,6 +39,7 @@ func (e *Engine) Analyze(ctx context.Context, incident *models.Incident) (*model
 	if err != nil {
 		return nil, fmt.Errorf("collect context: %w", err)
 	}
+	ctxBundle.metrics = e.collectMetrics(ctx, incident)
 
 	pastLearnings := e.queryPastIncidents(ctx, incident)
 
@@ -69,8 +73,9 @@ func (e *Engine) Analyze(ctx context.Context, incident *models.Incident) (*model
 }
 
 type contextBundle struct {
-	logs   string
-	events string
+	logs    string
+	events  string
+	metrics string
 }
 
 type analysisResult struct {
@@ -106,6 +111,70 @@ func collectContext(ctx context.Context, client kube.Client, incident *models.In
 	}
 
 	return bundle, nil
+}
+
+// collectMetrics pulls real resource-usage history from Prometheus for the
+// incident's pod. Returns "" when Prometheus is not configured or unreachable —
+// the RCA pipeline degrades gracefully without it.
+func (e *Engine) collectMetrics(ctx context.Context, incident *models.Incident) string {
+	if e.prom == nil {
+		return ""
+	}
+
+	end := time.Now()
+	start := end.Add(-30 * time.Minute)
+
+	var sections []string
+	queries := []struct {
+		title string
+		query string
+	}{
+		{
+			title: "Memory working set (MiB), last 30m",
+			query: fmt.Sprintf(
+				`max by (pod) (container_memory_working_set_bytes{namespace=%q,pod=~"%s.*"})/1048576`,
+				incident.Namespace, incident.ResourceName),
+		},
+		{
+			title: "CPU usage (cores), last 30m",
+			query: fmt.Sprintf(
+				`max by (pod) (rate(container_cpu_usage_seconds_total{namespace=%q,pod=~"%s.*"}[5m]))`,
+				incident.Namespace, incident.ResourceName),
+		},
+		{
+			title: "Container restarts (instant)",
+			query: fmt.Sprintf(
+				`max by (pod) (kube_pod_container_status_restarts_total{namespace=%q,pod=~"%s.*"})`,
+				incident.Namespace, incident.ResourceName),
+		},
+	}
+
+	for _, q := range queries {
+		var res string
+		var err error
+		if strings.Contains(q.title, "(instant)") {
+			res, err = e.prom.Query(ctx, q.query)
+		} else {
+			res, err = e.prom.QueryRange(ctx, q.query, start, end, time.Minute)
+		}
+		if err != nil || res == "" {
+			log.Printf("RCA Engine: metric query unavailable (%s): %v", q.title, err)
+			continue
+		}
+		sections = append(sections, fmt.Sprintf("### %s\n%s", q.title, res))
+	}
+
+	if len(sections) == 0 {
+		return ""
+	}
+	out := ""
+	for i, s := range sections {
+		if i > 0 {
+			out += "\n"
+		}
+		out += s
+	}
+	return out
 }
 
 func syntheticLogs(incident *models.Incident) string {
@@ -177,7 +246,7 @@ func (e *Engine) multiAgentAnalyze(ctx context.Context, bundle *contextBundle, i
 		err     error
 	}
 
-	ch := make(chan agentResult, 3)
+	ch := make(chan agentResult, 4)
 
 	// Logs agent
 	go func() {
@@ -223,10 +292,27 @@ func (e *Engine) multiAgentAnalyze(ctx context.Context, bundle *contextBundle, i
 		ch <- agentResult{name: "deploy", finding: &f}
 	}()
 
+	// Metrics agent — only when Prometheus context is available
+	if bundle.metrics != "" {
+		go func() {
+			resp, err := llm.AnalyzeWithSystem(ctx, metricsAgentPrompt,
+				"Prometheus resource metrics for "+deployCtx+":\n\n"+bundle.metrics)
+			if err != nil {
+				ch <- agentResult{name: "metrics", err: err}
+				return
+			}
+			var f agentFinding
+			if err := json.Unmarshal([]byte(resp.Raw), &f); err != nil {
+				f.Findings = resp.Summary
+			}
+			ch <- agentResult{name: "metrics", finding: &f}
+		}()
+	}
+
 	// Collect results
 	results := make(map[string]*agentFinding)
 	var firstErr error
-	for i := 0; i < 3; i++ {
+	for i := 0; i < cap(ch); i++ {
 		r := <-ch
 		if r.err != nil && firstErr == nil {
 			firstErr = r.err
@@ -247,8 +333,9 @@ func (e *Engine) multiAgentAnalyze(ctx context.Context, bundle *contextBundle, i
 	logsFindings := formatFinding(results["logs"])
 	eventsFindings := formatFinding(results["events"])
 	deployFindings := formatFinding(results["deploy"])
+	metricsFindings := formatFinding(results["metrics"])
 
-	synthPrompt := BuildSynthesisPrompt(logsFindings, eventsFindings, deployFindings, pastLearnings)
+	synthPrompt := BuildSynthesisPrompt(logsFindings, eventsFindings, deployFindings, metricsFindings, pastLearnings)
 	resp, err := llm.AnalyzeWithSystem(ctx,
 		"You are a lead incident investigator synthesizing findings from multiple specialists into one definitive root cause analysis.",
 		synthPrompt)
@@ -292,7 +379,7 @@ func (e *Engine) callLLM(ctx context.Context, bundle *contextBundle, incident *m
 	}
 
 	llm := NewLLMClient(e.llmCfg)
-	prompt := BuildPrompt(incident, bundle.logs, bundle.events, pastLearnings)
+	prompt := BuildPrompt(incident, bundle.logs, bundle.events, bundle.metrics, pastLearnings)
 	response, err := llm.Analyze(ctx, prompt)
 	if err != nil {
 		return nil, err

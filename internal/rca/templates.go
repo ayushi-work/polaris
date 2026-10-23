@@ -24,7 +24,10 @@ Message: {{ .Incident.Message }}
 
 ## Kubernetes Events
 {{ .Events }}
-
+{{ if .Metrics }}
+## Prometheus Metrics (last 30m)
+{{ .Metrics }}
+{{ end }}
 Return ONLY valid JSON (no markdown, no backticks):
 
 {
@@ -42,6 +45,7 @@ type promptData struct {
 	Incident      *models.Incident
 	Logs          string
 	Events        string
+	Metrics       string
 	PastLearnings string
 }
 
@@ -61,6 +65,11 @@ Consider: recent rollouts, configuration changes, resource limit changes, and re
 Based on the incident type and message, determine if a deployment change triggered this. Return ONLY valid JSON:
 {"findings": "deployment analysis", "severity": "low|medium|high|critical", "evidence": ["relevant observation 1"], "confidence": 0.0-1.0}`
 
+const metricsAgentPrompt = `You are a resource-metrics specialist. Analyze the Prometheus series for this incident.
+Identify: memory/CPU limit exhaustion trends, spikes before failure, restart count changes, and saturation patterns.
+Cite concrete values (e.g. "memory rose from 300MiB to 500MiB in 10m") as evidence. Return ONLY valid JSON:
+{"findings": "what the metrics reveal", "severity": "low|medium|high|critical", "evidence": ["concrete metric observation 1", "concrete observation 2"], "confidence": 0.0-1.0}`
+
 const synthesisPrompt = `You are a lead incident investigator. Three specialists have independently analyzed the same incident.
 
 Logs specialist findings:
@@ -71,7 +80,10 @@ Events specialist findings:
 
 Deployment specialist findings:
 {{ .DeployFindings }}
-
+{{ if .MetricsFindings }}
+Metrics specialist findings:
+{{ .MetricsFindings }}
+{{ end }}
 Previous similar incidents:
 {{ .PastLearnings }}
 
@@ -86,22 +98,24 @@ Synthesize these independent analyses into a single, definitive root cause analy
 }`
 
 type synthesisData struct {
-	LogsFindings   string
-	EventsFindings string
-	DeployFindings string
-	PastLearnings  string
+	LogsFindings    string
+	EventsFindings  string
+	DeployFindings  string
+	MetricsFindings string
+	PastLearnings   string
 }
 
-func BuildSynthesisPrompt(logsFindings, eventsFindings, deployFindings, pastLearnings string) string {
+func BuildSynthesisPrompt(logsFindings, eventsFindings, deployFindings, metricsFindings, pastLearnings string) string {
 	tmpl, err := template.New("synthesis").Parse(synthesisPrompt)
 	if err != nil {
 		return synthesisPrompt
 	}
 	data := synthesisData{
-		LogsFindings:   logsFindings,
-		EventsFindings: eventsFindings,
-		DeployFindings: deployFindings,
-		PastLearnings:  pastLearnings,
+		LogsFindings:    logsFindings,
+		EventsFindings:  eventsFindings,
+		DeployFindings:  deployFindings,
+		MetricsFindings: metricsFindings,
+		PastLearnings:   pastLearnings,
 	}
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
@@ -110,7 +124,7 @@ func BuildSynthesisPrompt(logsFindings, eventsFindings, deployFindings, pastLear
 	return buf.String()
 }
 
-func BuildPrompt(incident *models.Incident, logs, events, pastLearnings string) string {
+func BuildPrompt(incident *models.Incident, logs, events, metrics, pastLearnings string) string {
 	tmpl, err := template.New("rca").Parse(promptTemplate)
 	if err != nil {
 		return promptTemplate
@@ -120,6 +134,7 @@ func BuildPrompt(incident *models.Incident, logs, events, pastLearnings string) 
 		Incident:      incident,
 		Logs:          logs,
 		Events:        events,
+		Metrics:       metrics,
 		PastLearnings: pastLearnings,
 	}
 

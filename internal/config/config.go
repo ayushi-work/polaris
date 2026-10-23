@@ -16,6 +16,8 @@ type Config struct {
 	Logging     LoggingConfig     `mapstructure:"logging"`
 	Chaos       ChaosConfig       `mapstructure:"chaos"`
 	Remediation RemediationConfig `mapstructure:"remediation"`
+	Metrics     MetricsConfig     `mapstructure:"metrics"`
+	Alerting    AlertingConfig    `mapstructure:"alerting"`
 }
 
 type ServerConfig struct {
@@ -73,6 +75,23 @@ type RemediationConfig struct {
 	AllowedActions []string `mapstructure:"allowed_actions"`
 }
 
+type MetricsConfig struct {
+	Prometheus PrometheusConfig `mapstructure:"prometheus"`
+}
+
+type PrometheusConfig struct {
+	Enabled bool          `mapstructure:"enabled"`
+	URL     string        `mapstructure:"url"`
+	Timeout time.Duration `mapstructure:"timeout"`
+}
+
+type AlertingConfig struct {
+	Enabled    bool          `mapstructure:"enabled"`
+	WebhookURL string        `mapstructure:"webhook_url"`
+	Channel    string        `mapstructure:"channel"`
+	Timeout    time.Duration `mapstructure:"timeout"`
+}
+
 func DefaultConfig() *Config {
 	return &Config{
 		Server: ServerConfig{
@@ -119,6 +138,19 @@ func DefaultConfig() *Config {
 			AutoApprove:    false,
 			MaxRetries:     3,
 			AllowedActions: []string{"restart", "scale_up", "rollback"},
+		},
+		Metrics: MetricsConfig{
+			Prometheus: PrometheusConfig{
+				Enabled: false,
+				URL:     "http://localhost:9090",
+				Timeout: 10 * time.Second,
+			},
+		},
+		Alerting: AlertingConfig{
+			Enabled:    false,
+			WebhookURL: "",
+			Channel:    "polaris-alerts",
+			Timeout:    10 * time.Second,
 		},
 	}
 }

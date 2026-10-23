@@ -106,7 +106,7 @@ func (s *SQLiteStore) GetIncident(ctx context.Context, id string) (*Incident, er
 
 func (s *SQLiteStore) ListIncidents(ctx context.Context, filter IncidentFilter) ([]Incident, error) {
 	var incs []Incident
-	q := s.db.WithContext(ctx).Order("detected_at DESC")
+	q := s.db.WithContext(ctx).Preload("RCAResult").Order("detected_at DESC")
 
 	if filter.Status != "" {
 		q = q.Where("status = ?", filter.Status)

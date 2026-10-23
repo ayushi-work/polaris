@@ -33,6 +33,7 @@ remediation:
   auto_approve: false
   max_retries: 3
   allowed_actions: ["restart", "scale_up", "rollback"]
+  max_actions_per_hour: 20
 
 chaos:
   enabled: true

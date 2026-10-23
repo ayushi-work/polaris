@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"strings"
 
 	"github.com/ayushi/polaris/internal/config"
 )
@@ -71,7 +73,8 @@ func (c *LLMClient) AnalyzeWithSystem(ctx context.Context, system, prompt string
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("llm returned status %d", resp.StatusCode)
+		bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		return nil, fmt.Errorf("llm returned status %d: %s", resp.StatusCode, strings.TrimSpace(string(bodyBytes)))
 	}
 
 	var result struct {
@@ -224,7 +227,9 @@ func (c *LLMClient) ChatWithMessages(ctx context.Context, messages []llmMessage,
 		"messages":    messages,
 		"temperature": c.cfg.Temperature,
 		"max_tokens":  c.cfg.MaxTokens,
-		"tools":       tools,
+	}
+	if len(tools) > 0 {
+		body["tools"] = tools
 	}
 
 	jsonBody, err := json.Marshal(body)
@@ -246,7 +251,8 @@ func (c *LLMClient) ChatWithMessages(ctx context.Context, messages []llmMessage,
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("llm returned status %d", resp.StatusCode)
+		bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		return nil, fmt.Errorf("llm returned status %d: %s", resp.StatusCode, strings.TrimSpace(string(bodyBytes)))
 	}
 
 	var result chatResponse

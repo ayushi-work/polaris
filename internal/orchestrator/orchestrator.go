@@ -253,7 +253,7 @@ func (o *Orchestrator) handleRCATriggered(ctx context.Context, e eventbus.Event)
 	default:
 		return
 	}
-	log.Printf("Orchestrator: RCA triggered for %s — calling DeepSeek...", incidentID)
+	log.Printf("Orchestrator: RCA triggered for %s — starting investigation...", incidentID)
 
 	inc, err := o.store.GetIncident(ctx, incidentID)
 	if err != nil {

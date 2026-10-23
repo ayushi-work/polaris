@@ -33,7 +33,7 @@ func (e *Engine) AgentAnalyze(ctx context.Context, incident *models.Incident) (*
 
 	trace := make([]agentStep, 0, 8)
 
-	for turn := 0; turn < 6; turn++ {
+	for turn := 0; turn < 8; turn++ {
 		resp, err := llm.ChatWithMessages(ctx, messages, agentTools)
 		if err != nil {
 			return nil, fmt.Errorf("agent turn %d: %w", turn, err)
@@ -42,7 +42,18 @@ func (e *Engine) AgentAnalyze(ctx context.Context, incident *models.Incident) (*
 		if len(resp.ToolCalls) == 0 {
 			final, err := parseAgentFinal(resp.Content)
 			if err != nil {
-				return nil, fmt.Errorf("agent final answer: %w", err)
+				// The model answered in prose instead of the required JSON.
+				// Nudge it once for the exact format, then keep looping.
+				log.Printf("RCA Agent: round %d answer not valid final JSON, nudging", turn)
+				messages = append(messages, llmMessage{
+					Role:      "assistant",
+					Content:   resp.Content,
+					ToolCalls: nil,
+				}, llmMessage{
+					Role:    "user",
+					Content: "Your reply was not valid final JSON. Next time respond ONLY with either a tool call, or the final JSON object exactly in the required schema.",
+				})
+				continue
 			}
 			final.toolTrace = trace
 			final.rawOutput = resp.Raw
@@ -67,7 +78,25 @@ func (e *Engine) AgentAnalyze(ctx context.Context, incident *models.Incident) (*
 		}
 	}
 
-	return nil, fmt.Errorf("agent loop exhausted after 6 rounds without a final answer")
+	// Tool budget exhausted — force a final answer from the evidence
+	// gathered so far (no toolset offered), then parse it.
+	log.Printf("RCA Agent: forcing final answer after %d tool rounds", len(trace))
+	messages = append(messages, llmMessage{
+		Role:    "user",
+		Content: "Tool budget exhausted. Based ONLY on the evidence you have gathered so far, respond now with ONLY the final JSON object in the required schema.",
+	})
+	resp, err := llm.ChatWithMessages(ctx, messages, nil)
+	if err != nil {
+		return nil, fmt.Errorf("agent forced final: %w", err)
+	}
+	if final, err := parseAgentFinal(resp.Content); err != nil {
+		return nil, fmt.Errorf("agent forced final parse: %w", err)
+	} else {
+		final.toolTrace = trace
+		final.rawOutput = resp.Raw
+		log.Printf("RCA Engine: agent loop done (forced) after %d tool rounds", len(trace))
+		return final, nil
+	}
 }
 
 func truncate(s string, n int) string {

@@ -126,7 +126,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 				log.Printf("Detector stopped: %v", err)
 			}
 		}()
-		log.Println("Detector: started with 5 rules")
+		log.Printf("Detector: started with %d rules", len(rules.All()))
 	}
 
 	// Start alerting notifier (if enabled)

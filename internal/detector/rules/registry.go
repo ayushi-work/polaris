@@ -11,5 +11,6 @@ func All() []detector.Rule {
 		&ImagePullRule{},
 		&PodPendingRule{},
 		&NodePressureRule{},
+		NewAnomalyRule(),
 	}
 }

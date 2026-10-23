@@ -1,5 +1,5 @@
-import { Lightbulb, AlertCircle, ListChecks, FileText, Activity } from "lucide-react";
-import type { RCAResult, Evidence } from "@/types";
+import { Lightbulb, AlertCircle, ListChecks, FileText, Activity, Wrench } from "lucide-react";
+import type { RCAResult, Evidence, AgentStep } from "@/types";
 
 interface Props {
   rca: RCAResult;
@@ -13,11 +13,22 @@ function parseEvidence(jsonStr: string): string[] {
   return jsonStr ? [jsonStr] : [];
 }
 
+function parseAgentTrace(trace: RCAResult["agent_trace"]): AgentStep[] {
+  if (!trace) return [];
+  if (Array.isArray(trace)) return trace;
+  try {
+    const parsed = JSON.parse(trace);
+    if (Array.isArray(parsed)) return parsed;
+  } catch {}
+  return [];
+}
+
 export function RCAPanel({ rca }: Props) {
   const confPct = Math.round(rca.confidence * 100);
   const citedLogs = parseEvidence(rca.logs_snippet);
   const citedEvents = parseEvidence(rca.events_summary);
   const hasEvidence = citedLogs.length > 0 || citedEvents.length > 0;
+  const agentSteps = parseAgentTrace(rca.agent_trace);
 
   return (
     <div className="space-y-4">
@@ -35,6 +46,35 @@ export function RCAPanel({ rca }: Props) {
         </div>
         <p className="text-sm text-stone-600 leading-relaxed">{rca.root_cause}</p>
       </div>
+
+      {agentSteps.length > 0 && (
+        <div className="rounded-xl border border-border bg-white p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Wrench className="h-4 w-4 text-purple-500" />
+            <span className="text-xs font-medium uppercase tracking-wider text-stone-400">Agent investigation trail</span>
+            <span className="ml-auto rounded-full bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-700">
+              {agentSteps.length} tool call{agentSteps.length === 1 ? "" : "s"}
+            </span>
+          </div>
+          <ol className="space-y-2">
+            {agentSteps.map((step, i) => (
+              <li key={i} className="rounded-lg border border-stone-100 bg-stone-50/60 px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <span className="rounded bg-purple-100 px-1.5 py-0.5 text-xs font-mono font-medium text-purple-800">
+                    {step.tool}
+                  </span>
+                  {step.args && step.args !== "{}" && (
+                    <span className="truncate text-xs text-stone-400 font-mono">{step.args}</span>
+                  )}
+                </div>
+                <pre className="mt-1 max-h-24 overflow-y-auto whitespace-pre-wrap text-xs font-mono leading-relaxed text-stone-500">
+                  {step.output}
+                </pre>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
 
       {hasEvidence && (
         <div className="rounded-xl border border-border bg-white p-5">

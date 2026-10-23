@@ -43,7 +43,14 @@ func (e *Engine) Analyze(ctx context.Context, incident *models.Incident) (*model
 
 	pastLearnings := e.queryPastIncidents(ctx, incident)
 
-	analysis, err := e.multiAgentAnalyze(ctx, ctxBundle, incident, pastLearnings)
+	// Attempt order: agentic tool-use loop → parallel specialist agents →
+	// single-shot LLM → rule-based heuristics. Each layer degrades
+	// gracefully so diagnosis never fully fails.
+	analysis, err := e.AgentAnalyze(ctx, incident)
+	if err != nil {
+		log.Printf("RCA Engine: agent loop failed, trying multi-agent: %v", err)
+		analysis, err = e.multiAgentAnalyze(ctx, ctxBundle, incident, pastLearnings)
+	}
 	if err != nil {
 		log.Printf("RCA Engine: multi-agent failed, trying single call: %v", err)
 		analysis, err = e.callLLM(ctx, ctxBundle, incident, pastLearnings)
@@ -55,6 +62,7 @@ func (e *Engine) Analyze(ctx context.Context, incident *models.Incident) (*model
 
 	evidenceLogs, _ := json.Marshal(analysis.evidenceLogs)
 	evidenceEvents, _ := json.Marshal(analysis.evidenceEvents)
+	agentTrace, _ := json.Marshal(analysis.toolTrace)
 
 	rca := &models.RCAResult{
 		IncidentID:       incident.ID,
@@ -65,6 +73,7 @@ func (e *Engine) Analyze(ctx context.Context, incident *models.Incident) (*model
 		EventsSummary:    string(evidenceEvents),
 		SuggestedActions: analysis.suggestedActions,
 		RawLLMOutput:     analysis.rawOutput,
+		AgentTrace:       string(agentTrace),
 		LLMModel:         e.llmCfg.Model,
 		CreatedAt:        time.Now().UTC(),
 	}
@@ -86,6 +95,7 @@ type analysisResult struct {
 	evidenceLogs     []string
 	evidenceEvents   []string
 	rawOutput        string
+	toolTrace        []agentStep
 }
 
 func collectContext(ctx context.Context, client kube.Client, incident *models.Incident) (*contextBundle, error) {

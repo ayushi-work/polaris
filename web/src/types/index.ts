@@ -43,10 +43,17 @@ export interface RCAResult {
   events_summary: string;
   suggested_actions: string;
   raw_llm_output: string;
+  agent_trace?: AgentStep[] | string;
   llm_model: string;
   prompt_tokens: number;
   completion_tokens: number;
   created_at: string;
+}
+
+export interface AgentStep {
+  tool: string;
+  args: string;
+  output: string;
 }
 
 export interface Evidence {

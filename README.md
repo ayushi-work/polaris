@@ -2,7 +2,7 @@
 
 **AI-powered Kubernetes incident detection, root cause analysis, and self-healing.**
 
-Polaris watches your cluster, spots when things break (OOMKilled, CrashLoopBackOff, etc.), asks an LLM to figure out why, and can fix it automatically — restart, scale, or rollback. It can also intentionally break things so you can verify the self-healing works.
+Polaris watches your cluster, spots when things break (OOMKilled, CrashLoopBackOff, etc.), investigates the root cause with an **agentic LLM investigation loop**, and can fix it automatically — restart, scale, or rollback, **escalating through runbook ladders**. It can also intentionally break things so you can verify the self-healing works.
 
 All controllable from a web dashboard.
 
@@ -33,14 +33,19 @@ The `--dry-run` flag runs without a real Kubernetes cluster — detection and ch
 ```
 CLI (Cobra)
   └─ API Server (Fiber + WebSocket)
-       ├─ Detector ─── watches pods, fires incident events
-       ├─ RCA Engine ── gathers logs/events, calls DeepSeek for root cause
-       ├─ Remediation ─ restarts, scales, or rolls back broken workloads
-       ├─ Chaos ─────── injects failures (delete pods, stress, network)
+       ├─ Detector ─── 6 rules incl. statistical restart anomaly (z-score)
+       ├─ Correlator ── persists detections, 5m dedupe window
+       ├─ RCA Engine ── agent loop → specialist agents → single call → heuristics
+       │               agent tools: logs, events, deployment, prometheus, incident memory
+       ├─ Runbooks ──── YAML escalation ladders (restart → scale_up → rollback)
+       ├─ Remediation ─ Safety gate (whitelist, circuit breaker, pre-checks) + executor
+       ├─ Chaos ─────── delete pods, CPU/memory stress, network netem, config faults
+       ├─ Prometheus ── real resource metrics feed RCA context (optional)
+       ├─ Alerting ──── Slack-compatible webhook on incident lifecycle (optional)
        └─ Orchestrator ─ central coordinator, subscribes to event bus
 
-Storage: SQLite via GORM
-K8s:      client-go (real cluster, kubeconfig, or fake for dev)
+Storage: SQLite (default) or PostgreSQL, via GORM
+K8s:     client-go (real cluster, kubeconfig, or fake for dev)
 Frontend: React + TypeScript + Tailwind
 ```
 
@@ -50,17 +55,23 @@ Frontend: React + TypeScript + Tailwind
 cmd/polaris/         CLI entry point
 internal/
   api/               HTTP handlers, WebSocket hub, middleware
-  orchestrator/      Central coordinator
-  detector/          Pod watcher + detection rules
-  rca/               Root cause analysis engine + LLM client
-  remediation/       Self-healing actions
-  chaos/             Failure injection engine
+  orchestrator/      Central coordinator: persistence, runbooks, escalation
+  detector/          Pod watcher + detection rules (6, incl. anomaly z-score)
+  rca/               Agent-loop RCA engine, LLM client, heuristics
+  remediation/       Safety gate + restart / scale / rollback actions
+  runbooks/          YAML runbook registry
+  chaos/             Failure injection: delete/stress/netem/config-fault
+  prometheus/        Prometheus API client (instant + range queries)
+  alerting/          Slack-compatible webhook notifier
   eventbus/          In-memory pub/sub
-  models/            Data models + SQLite store
+  models/            Data models + SQLite/Postgres store
   kube/              Kubernetes client abstraction
   config/            Viper config loading
 pkg/iforge/          Shared constants, error types
 web/                 React frontend (Vite)
+configs/
+  runbooks/          Default runbook ladders
+deployments/         Dockerfile, docker-compose, nginx, prometheus configs
 ```
 
 ## API
@@ -98,6 +109,32 @@ web/                 React frontend (Vite)
 | `imagepull` | ImagePullBackOff or ErrImagePull |
 | `podpending` | Pods stuck unschedulable |
 | `nodepressure` | Nodes under disk/memory pressure |
+| `anomaly-restarts` | Statistical restart-rate spikes (z-score vs own baseline) |
+
+## Runbooks (escalation ladders)
+
+Runbooks in `configs/runbooks/*.yaml` define ordered remediation steps. The
+first step auto-creates on critical incidents; **failed steps escalate** to the
+next rung (e.g. `restart → scale_up → rollback`). Human approval is required
+unless `remediation.auto_approve: true`; a SafetyGate wraps every execution:
+allowed-action whitelist, hourly circuit breaker, target pre-checks.
+
+## Prometheus + Alerting (optional)
+
+```yaml
+metrics:
+  prometheus:
+    enabled: true
+    url: "http://localhost:9090"
+
+alerting:
+  enabled: true
+  webhook_url: "https://hooks.slack.com/services/..."
+```
+
+With Prometheus configured, RCA ships 30m memory/CPU/restart history as
+evidence and a fourth specialist agent analyzes it. With a webhook URL, alerts
+fire on every incident, RCA result, remediation and chaos injection.
 
 ## Kubernetes modes
 
@@ -106,6 +143,15 @@ web/                 React frontend (Vite)
 | `fake` | `--dry-run` | No cluster needed, uses fake clientset |
 | `kubeconfig` | default | Uses local `~/.kube/config` |
 | `in-cluster` | — | Uses pod service account (production) |
+
+## Docker Compose
+
+```bash
+docker compose -f deployments/docker-compose.yml up       # sqlite + prometheus
+docker compose -f deployments/docker-compose.yml --profile postgres up  # postgres backend
+```
+
+Polaris on :8080, UI on :5173, Prometheus on :9090.
 
 ## Configuration
 
@@ -135,6 +181,7 @@ llm:
 
 ## Tech stack
 
-**Backend:** Go, Fiber, Cobra, Viper, GORM, SQLite, client-go
+**Backend:** Go, Fiber, Cobra, Viper, GORM (SQLite/PostgreSQL), client-go
 **Frontend:** React 18, TypeScript, Vite, Tailwind CSS, TanStack Query, Recharts, React Flow
-**AI:** DeepSeek (OpenAI-compatible API)
+**AI:** DeepSeek (OpenAI-compatible API) with tool-calling agent loop
+**Observability:** Prometheus HTTP API (optional), Slack-compatible webhooks (optional)

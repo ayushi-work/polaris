@@ -16,10 +16,10 @@ import (
 // approved by human or auto_approve); subsequent steps only auto-create when
 // the previous step FAILED, so healing escalates instead of repeating.
 type Runbook struct {
-	Name        string   `yaml:"name" json:"name"`
-	Description string   `yaml:"description" json:"description"`
-	Match       Match    `yaml:"match" json:"match"`
-	Steps       []Step   `yaml:"steps" json:"steps"`
+	Name        string `yaml:"name" json:"name"`
+	Description string `yaml:"description" json:"description"`
+	Match       Match  `yaml:"match" json:"match"`
+	Steps       []Step `yaml:"steps" json:"steps"`
 }
 
 type Match struct {
@@ -28,10 +28,10 @@ type Match struct {
 }
 
 type Step struct {
-	Action     string `yaml:"action" json:"action"`       // restart | scale_up | scale_down | rollback | delete_pod
-	Params     string `yaml:"params,omitempty" json:"params,omitempty"`
-	MinReplicas int   `yaml:"min_replicas,omitempty" json:"min_replicas,omitempty"`
-	Wait       string `yaml:"wait,omitempty" json:"wait,omitempty"` // observation wait before next step escalates
+	Action      string `yaml:"action" json:"action"` // restart | scale_up | scale_down | rollback | delete_pod
+	Params      string `yaml:"params,omitempty" json:"params,omitempty"`
+	MinReplicas int    `yaml:"min_replicas,omitempty" json:"min_replicas,omitempty"`
+	Wait        string `yaml:"wait,omitempty" json:"wait,omitempty"` // observation wait before next step escalates
 }
 
 // Registry loads runbooks from a directory of YAML files.

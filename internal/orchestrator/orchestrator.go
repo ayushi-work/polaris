@@ -90,8 +90,8 @@ func (o *Orchestrator) handleRemediationCompleted(ctx context.Context, e eventbu
 	}
 
 	var meta struct {
-		Runbook  string `json:"runbook"`
-		StepIndex int   `json:"step_index"`
+		Runbook   string `json:"runbook"`
+		StepIndex int    `json:"step_index"`
 	}
 	_ = json.Unmarshal([]byte(rem.Parameters), &meta)
 	if meta.Runbook == "" || o.runbooks == nil {

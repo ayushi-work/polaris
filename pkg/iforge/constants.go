@@ -30,22 +30,22 @@ const (
 
 // Remediation types.
 const (
-	RemediationTypeRestart   = "restart"
-	RemediationTypeScaleUp   = "scale_up"
-	RemediationTypeScaleDown = "scale_down"
-	RemediationTypeRollback  = "rollback"
-	RemediationTypeDrainNode = "drain_node"
+	RemediationTypeRestart    = "restart"
+	RemediationTypeScaleUp    = "scale_up"
+	RemediationTypeScaleDown  = "scale_down"
+	RemediationTypeRollback   = "rollback"
+	RemediationTypeDrainNode  = "drain_node"
 	RemediationTypeCordonNode = "cordon_node"
-	RemediationTypeDeletePod = "delete_pod"
+	RemediationTypeDeletePod  = "delete_pod"
 )
 
 // Remediation statuses.
 const (
-	RemediationPending  = "pending"
-	RemediationRunning  = "running"
-	RemediationSuccess  = "success"
-	RemediationFailed   = "failed"
-	RemediationSkipped  = "skipped"
+	RemediationPending = "pending"
+	RemediationRunning = "running"
+	RemediationSuccess = "success"
+	RemediationFailed  = "failed"
+	RemediationSkipped = "skipped"
 )
 
 // Chaos actions.

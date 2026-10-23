@@ -183,6 +183,12 @@ func (o *Orchestrator) handleIncidentCreated(ctx context.Context, e eventbus.Eve
 
 	log.Printf("Orchestrator: incident created %s (%s)", inc.ID, inc.IncidentType)
 
+	// Kick off RCA investigation for every new incident.
+	o.bus.Publish(eventbus.Event{
+		Type:    eventbus.EventRCATriggered,
+		Payload: inc,
+	})
+
 	// Auto-create a remediation for critical incidents
 	if inc.Severity == iforge.SeverityCritical {
 		rem := o.initialRemediation(inc)
@@ -238,12 +244,15 @@ func runbookMeta(name string, step runbooks.Step, severity string) string {
 }
 
 func (o *Orchestrator) handleRCATriggered(ctx context.Context, e eventbus.Event) {
-	payload, ok := e.Payload.(map[string]string)
-	if !ok {
+	var incidentID string
+	switch p := e.Payload.(type) {
+	case map[string]string:
+		incidentID = p["incident_id"]
+	case *models.Incident:
+		incidentID = p.ID
+	default:
 		return
 	}
-
-	incidentID := payload["incident_id"]
 	log.Printf("Orchestrator: RCA triggered for %s — calling DeepSeek...", incidentID)
 
 	inc, err := o.store.GetIncident(ctx, incidentID)

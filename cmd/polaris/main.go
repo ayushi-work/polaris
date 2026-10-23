@@ -11,6 +11,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
 
+	"github.com/ayushi/polaris/internal/alerting"
 	"github.com/ayushi/polaris/internal/api"
 	"github.com/ayushi/polaris/internal/config"
 	"github.com/ayushi/polaris/internal/detector"
@@ -123,6 +124,16 @@ func runServe(cmd *cobra.Command, args []string) error {
 			}
 		}()
 		log.Println("Detector: started with 5 rules")
+	}
+
+	// Start alerting notifier (if enabled)
+	if cfg.Alerting.Enabled && cfg.Alerting.WebhookURL != "" {
+		notifier := alerting.New(cfg.Alerting.WebhookURL, cfg.Alerting.Channel, cfg.Alerting.Timeout)
+		go func() {
+			if err := notifier.Run(ctx, bus); err != nil {
+				log.Printf("Alerting stopped: %v", err)
+			}
+		}()
 	}
 
 	// Graceful shutdown

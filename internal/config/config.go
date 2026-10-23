@@ -174,6 +174,10 @@ func Load(path string) (*Config, error) {
 	_ = viper.BindEnv("kubernetes.mode", "POLARIS_KUBERNETES_MODE")
 	_ = viper.BindEnv("llm.api_key", "POLARIS_LLM_API_KEY")
 	_ = viper.BindEnv("llm.model", "POLARIS_LLM_MODEL")
+	_ = viper.BindEnv("alerting.webhook_url", "POLARIS_ALERTING_WEBHOOK_URL")
+	_ = viper.BindEnv("alerting.enabled", "POLARIS_ALERTING_ENABLED")
+	_ = viper.BindEnv("metrics.prometheus.url", "POLARIS_METRICS_PROMETHEUS_URL")
+	_ = viper.BindEnv("metrics.prometheus.enabled", "POLARIS_METRICS_PROMETHEUS_ENABLED")
 
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {

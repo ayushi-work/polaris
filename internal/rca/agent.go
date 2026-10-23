@@ -36,6 +36,15 @@ func (e *Engine) AgentAnalyze(ctx context.Context, incident *models.Incident) (*
 	for turn := 0; turn < 8; turn++ {
 		resp, err := llm.ChatWithMessages(ctx, messages, agentTools)
 		if err != nil {
+			// Some models (e.g. gpt-oss on Groq) mark their final answer by
+			// calling a nonexistent "json" tool; the provider rejects the
+			// whole generation with 400 but includes it in the error. If the
+			// embedded generation parses as a valid final answer, use it.
+			if final, ok := salvageFinalFromError(err); ok {
+				final.toolTrace = trace
+				log.Printf("RCA Engine: agent loop done (salvaged final) after %d tool rounds", len(trace))
+				return final, nil
+			}
 			return nil, fmt.Errorf("agent turn %d: %w", turn, err)
 		}
 
@@ -273,4 +282,58 @@ func stripFences(s string) string {
 	s = strings.TrimPrefix(s, "```")
 	s = strings.TrimSuffix(s, "```")
 	return strings.TrimSpace(s)
+}
+
+// salvageFinalFromError recovers a valid final answer when the provider
+// rejects the model's generation (HTTP 400) because the model wrapped it in
+// a tool call to a nonexistent "json" tool. The raw generation is embedded
+// in the error as escaped JSON under "failed_generation".
+func salvageFinalFromError(err error) (*analysisResult, bool) {
+	s := err.Error()
+	const key = `"failed_generation":`
+	i := strings.Index(s, key)
+	if i < 0 || strings.Contains(s[:i], `"code":"tool_use_failed"`) == false {
+		// Only attempt when the error is a rejected tool-call generation.
+		return nil, false
+	}
+	// Skip to the opening quote of the embedded JSON string literal.
+	j := strings.IndexByte(s[i+len(key):], '"') + i + len(key)
+	if j < 0 {
+		return nil, false
+	}
+	// Escape-aware scan for the closing quote.
+	end := -1
+	for k := j + 1; k < len(s); k++ {
+		if s[k] == '\\' {
+			k++
+			continue
+		}
+		if s[k] == '"' {
+			end = k
+			break
+		}
+	}
+	if end < 0 {
+		return nil, false
+	}
+	var raw string
+	if json.Unmarshal([]byte(s[j:end+1]), &raw) != nil {
+		return nil, false
+	}
+	// raw is clean JSON now: either a tool-call wrapper or a bare final.
+	var tc struct {
+		Name      string          `json:"name"`
+		Arguments json.RawMessage `json:"arguments"`
+	}
+	if json.Unmarshal([]byte(raw), &tc) == nil && tc.Name != "" {
+		if final, perr := parseAgentFinal(string(tc.Arguments)); perr == nil {
+			return final, true
+		}
+		return nil, false
+	}
+	final, perr := parseAgentFinal(raw)
+	if perr != nil {
+		return nil, false
+	}
+	return final, true
 }
